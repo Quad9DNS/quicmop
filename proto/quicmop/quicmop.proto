@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package quicmop;
+
+// Service for sending socket metrics from agents to the collector.
+service QuicmopSocketMetricsService {
+  // Streams agent metrics to the collector.
+  rpc StreamMetrics(stream AgentMetricsRequest) returns (CollectorResponse);
+}
+
+// Request sent from the agent to the collector, containing new or all metrics that agent has about sockets per network pair.
+message AgentMetricsRequest {
+  // List of metrics groups, containing socket metrics about a network pair (source network + destination network).
+  repeated SocketMetricsGroup metrics = 1;
+
+  // TODO: maybe some metadata too? about the host or agent
+}
+
+message CollectorResponse {}
+
+message SocketMetricsGroup {
+  IP src = 1;
+  IP dst = 2;
+
+  string host = 3;
+  string latency_type = 4;
+
+  Metrics metrics = 5;
+}
+
+message Metrics {
+  uint64 min_rtt_us = 1;
+}
+
+message IP {
+  oneof ip_family {
+    fixed32 v4 = 1;
+    bytes v6 = 2;
+  }
+}

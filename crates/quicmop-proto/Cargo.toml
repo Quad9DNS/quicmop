@@ -1,0 +1,18 @@
+[package]
+name = "quicmop-proto"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+
+[dependencies]
+prost.workspace = true
+tonic.workspace = true
+tonic-prost.workspace = true
+
+[build-dependencies]
+tonic-prost-build.workspace = true

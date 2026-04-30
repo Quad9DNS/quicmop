@@ -1,0 +1,20 @@
+[package]
+name = "quicmop-kernel-agent"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+
+[dependencies]
+async-stream.workspace = true
+netlink-sys.workspace = true
+netlink-packet-core.workspace = true
+netlink-packet-sock-diag.workspace = true
+quicmop-proto.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
+tonic.workspace = true

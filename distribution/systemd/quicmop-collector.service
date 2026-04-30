@@ -1,0 +1,13 @@
+[Unit]
+Description=Quicmop collector
+Documentation=https://github.com/Quad9DNS/quicmop
+After=network-online.target
+Requires=network-online.target
+
+[Service]
+ExecStart=/usr/bin/quicmop-collector
+ExecReload=/bin/kill -HUP $MAINPID
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
