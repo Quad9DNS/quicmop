@@ -67,6 +67,8 @@ struct MetricsConfig {
     scrape: Option<ScrapeExporterConfig>,
     #[serde(default = "default_metrics_prefix")]
     name_prefix: String,
+    #[serde(default = "default_buckets")]
+    buckets: Vec<f64>,
 }
 
 impl Default for MetricsConfig {
@@ -78,6 +80,7 @@ impl Default for MetricsConfig {
                 addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9000),
             }),
             name_prefix: default_metrics_prefix(),
+            buckets: default_buckets(),
         }
     }
 }
@@ -98,6 +101,7 @@ impl MetricsConfig {
         Ok(ValidatedMetricsConfig {
             exporters,
             prefix: self.name_prefix.clone(),
+            buckets: self.buckets.clone(),
         })
     }
 }
@@ -154,6 +158,12 @@ fn default_metrics_prefix() -> String {
     "quicmop".to_string()
 }
 
+fn default_buckets() -> Vec<f64> {
+    vec![
+        0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0,
+    ]
+}
+
 /// Parsed and validated process configuration for the stringsimile service.
 #[derive(Debug, Clone)]
 pub struct ValidatedProcessConfig {
@@ -190,6 +200,8 @@ impl ValidatedProcessConfig {
 pub struct ValidatedMetricsConfig {
     /// List of metrics exporters to export metrics with.
     pub exporters: HashSet<MetricsExporter>,
+    /// List of buckets to store metrics in.
+    pub buckets: Vec<f64>,
     /// Prefix to apply to all metrics names.
     pub prefix: String,
 }
@@ -198,6 +210,11 @@ impl ValidatedMetricsConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
             exporters: self.exporters.into_iter().chain(other.exporters).collect(),
+            buckets: if other.buckets.is_empty() {
+                self.buckets
+            } else {
+                other.buckets
+            },
             prefix: if other.prefix == default_metrics_prefix() {
                 self.prefix
             } else {
@@ -290,6 +307,7 @@ impl TryFrom<CliArgs> for ServiceConfig {
         let metrics_config = ValidatedMetricsConfig {
             exporters: HashSet::new(),
             prefix: value.metrics_name_prefix,
+            buckets: Vec::default(),
         };
 
         let cli_config = ServiceConfig {

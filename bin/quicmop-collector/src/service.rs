@@ -8,7 +8,7 @@ use clap::Parser;
 use exitcode::ExitCode;
 use futures::FutureExt;
 use metrics::gauge;
-use metrics_exporter_prometheus::PrometheusBuilder;
+use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
 use metrics_util::layers::{PrefixLayer, Stack};
 use quicmop_proto::proto::quicmop_socket_metrics_service_server::QuicmopSocketMetricsServiceServer;
 use tokio::runtime::Runtime;
@@ -92,7 +92,13 @@ impl Service<InitState> {
             .with_writer(io::stderr)
             .init();
 
-        let metrics_recorder = PrometheusBuilder::new().build_recorder();
+        let metrics_recorder = PrometheusBuilder::new()
+            .set_buckets_for_metric(
+                Matcher::Suffix("bucket".to_string()),
+                &config.metrics.buckets,
+            )
+            .unwrap()
+            .build_recorder();
         let metrics_handle = metrics_recorder.handle();
 
         let layers = Stack::new(metrics_recorder);
