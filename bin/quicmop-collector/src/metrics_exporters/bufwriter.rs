@@ -1,4 +1,4 @@
-use std::time::Duration;
+use std::{ops::Deref, sync::Arc, time::Duration};
 
 use futures::StreamExt;
 use metrics_exporter_prometheus::PrometheusHandle;
@@ -7,6 +7,8 @@ use tokio::{
     time::interval,
 };
 use tokio_stream::wrappers::IntervalStream;
+
+use crate::collector::Collector;
 
 use super::MetricsExporterTaskBuilder;
 
@@ -23,16 +25,27 @@ impl<W: AsyncWrite> BufWriterMetricsExporter<W> {
         }
     }
 
-    pub async fn export(self, handle: &PrometheusHandle) -> crate::Result<()> {
+    pub async fn export(
+        self,
+        handle: &PrometheusHandle,
+        collector: Arc<Collector>,
+    ) -> crate::Result<()> {
         let mut writer = Box::pin(self.writer);
         writer.write_all(handle.render().as_bytes()).await?;
+        let mut collector_data = Vec::default();
+        collector.render_to_write(&mut collector_data);
+        writer.write_all(&collector_data).await?;
         writer.flush().await?;
         Ok(())
     }
 }
 
 impl<W: AsyncWrite> MetricsExporterTaskBuilder for BufWriterMetricsExporter<W> {
-    async fn start_exporting(self, handle: PrometheusHandle) -> crate::Result<()> {
+    async fn start_exporting(
+        self,
+        handle: PrometheusHandle,
+        collector: Arc<Collector>,
+    ) -> crate::Result<()> {
         let mut intervals =
             IntervalStream::new(interval(Duration::from_secs(self.export_interval_secs)));
 
@@ -42,6 +55,9 @@ impl<W: AsyncWrite> MetricsExporterTaskBuilder for BufWriterMetricsExporter<W> {
                 .write_all(handle.render().as_bytes())
                 .await
                 .expect("Metrics write failed");
+            let mut collector_data = Vec::default();
+            collector.render_to_write(&mut collector_data);
+            writer.write_all(&collector_data).await?;
             writer.flush().await.expect("Flush failed");
         }
 

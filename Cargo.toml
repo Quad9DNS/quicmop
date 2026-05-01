@@ -15,6 +15,7 @@ version = "0.1.0"
 [workspace.dependencies]
 quicmop-proto = { path = "./crates/quicmop-proto" }
 
+arc-swap = { version = "1.9.1" }
 async-stream = { version = "0.3.6" }
 axum = { version = "0.8.9" }
 clap = { version = "4.5.36" }
@@ -25,6 +26,7 @@ ipnet = { version = "2.12.0" }
 metrics = { version = "0.24.2" }
 metrics-exporter-prometheus = { version = "0.18.3" }
 metrics-util = { version = "0.19.1" }
+moka = { version = "0.12.15", features = ["future"] }
 netlink-sys = "0.8"
 netlink-packet-core = "0.7"
 netlink-packet-sock-diag = { version = "0.4", features = ["rich_nlas"] }

@@ -1,6 +1,10 @@
+use std::sync::Arc;
+
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
 use tokio::io::{self, BufWriter};
+
+use crate::collector::Collector;
 
 use super::{MetricsExporterTaskBuilder, bufwriter::BufWriterMetricsExporter};
 
@@ -25,12 +29,16 @@ impl StdoutMetricsExporter {
 }
 
 impl MetricsExporterTaskBuilder for StdoutMetricsExporter {
-    async fn start_exporting(self, handle: PrometheusHandle) -> crate::Result<()> {
+    async fn start_exporting(
+        self,
+        handle: PrometheusHandle,
+        collector: Arc<Collector>,
+    ) -> crate::Result<()> {
         BufWriterMetricsExporter::new_with_interval(
             BufWriter::new(io::stdout()),
             self.config.export_interval_secs,
         )
-        .start_exporting(handle)
+        .start_exporting(handle, collector)
         .await
     }
 }

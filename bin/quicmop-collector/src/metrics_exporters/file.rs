@@ -1,10 +1,12 @@
-use std::{path::PathBuf, time::Duration};
+use std::{path::PathBuf, sync::Arc, time::Duration};
 use tokio_stream::{StreamExt, wrappers::IntervalStream};
 use tracing::error;
 
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
 use tokio::{fs::OpenOptions, io::BufWriter, time::interval};
+
+use crate::collector::Collector;
 
 use super::{MetricsExporterTaskBuilder, bufwriter::BufWriterMetricsExporter};
 
@@ -36,7 +38,11 @@ impl FileMetricsExporter {
 }
 
 impl MetricsExporterTaskBuilder for FileMetricsExporter {
-    async fn start_exporting(self, handle: PrometheusHandle) -> crate::Result<()> {
+    async fn start_exporting(
+        self,
+        handle: PrometheusHandle,
+        collector: Arc<Collector>,
+    ) -> crate::Result<()> {
         let mut intervals = IntervalStream::new(interval(Duration::from_secs(
             self.config.export_interval_secs,
         )));
@@ -60,7 +66,7 @@ impl MetricsExporterTaskBuilder for FileMetricsExporter {
                 BufWriter::new(file),
                 self.config.export_interval_secs,
             )
-            .export(&handle)
+            .export(&handle, Arc::clone(&collector))
             .await?;
         }
 

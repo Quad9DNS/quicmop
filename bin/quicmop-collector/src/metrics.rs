@@ -1,5 +1,6 @@
 use std::{
     panic,
+    sync::Arc,
     time::{Duration, Instant},
 };
 
@@ -14,7 +15,7 @@ use tokio::{
 use tracing::{error, info};
 
 use crate::{
-    config::ServiceConfig, metrics_exporters::MetricsExporterTaskBuilder,
+    collector::Collector, config::ServiceConfig, metrics_exporters::MetricsExporterTaskBuilder,
     system_metrics::SystemMetrics,
 };
 
@@ -63,7 +64,12 @@ impl MetricsProcessor {
         }
     }
 
-    pub async fn run(self, runtime_handle: Handle, mut shutdown: Receiver<()>) {
+    pub async fn run(
+        self,
+        runtime_handle: Handle,
+        collector: Arc<Collector>,
+        mut shutdown: Receiver<()>,
+    ) {
         let mut export_tasks = JoinSet::new();
 
         let uptime_metric = gauge!("process_uptime_secs");
@@ -93,7 +99,7 @@ impl MetricsProcessor {
         for metrics_exporter in self.config.metrics.exporters.clone() {
             export_tasks.spawn_on(
                 metrics_exporter
-                    .start_exporting(self.metrics_handle.clone())
+                    .start_exporting(self.metrics_handle.clone(), Arc::clone(&collector))
                     .map_err(|err| {
                         error!("Metrics exporter task has failed with an error: {}", err);
                     }),

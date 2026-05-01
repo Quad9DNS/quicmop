@@ -2,6 +2,7 @@
 use std::io;
 use std::net::SocketAddr;
 use std::process::ExitStatus;
+use std::sync::Arc;
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
@@ -142,15 +143,22 @@ impl Service<InitState> {
 
         let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
 
-        let metrics_handle =
-            handle.spawn(metrics_processor.run(handle.clone(), shutdown_tx.subscribe()));
+        let collector = Arc::new(Collector::new(
+            24,
+            56,
+            config.metrics.buckets.clone(),
+            config.metrics.prefix.clone(),
+        ));
+
+        let metrics_handle = handle.spawn(metrics_processor.run(
+            handle.clone(),
+            Arc::clone(&collector),
+            shutdown_tx.subscribe(),
+        ));
 
         let grpc_server_handle = handle.spawn(
             Server::builder()
-                .add_service(QuicmopSocketMetricsServiceServer::new(Collector {
-                    v4_netmask: 24,
-                    v6_netmask: 56,
-                }))
+                .add_service(QuicmopSocketMetricsServiceServer::from_arc(collector))
                 .serve_with_shutdown(
                     SocketAddr::new(config.input.grpc_server_addr, config.input.grpc_server_port),
                     async move { shutdown_rx.recv().map(|_| ()).await },

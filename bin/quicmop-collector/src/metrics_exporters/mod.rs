@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 use file::FileMetricsExporter;
 use metrics_exporter_prometheus::PrometheusHandle;
 use stdout::StdoutMetricsExporter;
@@ -11,7 +13,7 @@ pub use file::FileExporterConfig;
 pub use scrape::ScrapeExporterConfig;
 pub use stdout::StdoutExporterConfig;
 
-use crate::metrics_exporters::scrape::ScrapeMetricsExporter;
+use crate::{collector::Collector, metrics_exporters::scrape::ScrapeMetricsExporter};
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub enum MetricsExporter {
@@ -21,21 +23,25 @@ pub enum MetricsExporter {
 }
 
 impl MetricsExporterTaskBuilder for MetricsExporter {
-    async fn start_exporting(self, handle: PrometheusHandle) -> crate::Result<()> {
+    async fn start_exporting(
+        self,
+        handle: PrometheusHandle,
+        collector: Arc<Collector>,
+    ) -> crate::Result<()> {
         match self {
             MetricsExporter::Stdout(config) => {
                 StdoutMetricsExporter::new(config)
-                    .start_exporting(handle)
+                    .start_exporting(handle, collector)
                     .await
             }
             MetricsExporter::File(config) => {
                 FileMetricsExporter::new(config)
-                    .start_exporting(handle)
+                    .start_exporting(handle, collector)
                     .await
             }
             MetricsExporter::Scrape(config) => {
                 ScrapeMetricsExporter::new(config)
-                    .start_exporting(handle)
+                    .start_exporting(handle, collector)
                     .await
             }
         }
@@ -59,7 +65,11 @@ impl MetricsExporterBuilder for MetricsExporter {
 }
 
 pub(crate) trait MetricsExporterTaskBuilder {
-    async fn start_exporting(self, handle: PrometheusHandle) -> crate::Result<()>;
+    async fn start_exporting(
+        self,
+        handle: PrometheusHandle,
+        collector: Arc<Collector>,
+    ) -> crate::Result<()>;
 }
 
 pub(crate) trait MetricsExporterBuilder: MetricsExporterTaskBuilder {
