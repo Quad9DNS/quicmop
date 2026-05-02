@@ -20,7 +20,6 @@ use quicmop_proto::proto::{
 #[derive(Clone)]
 struct AddressEntry {
     min_rtt_us: u64,
-    last_update: Instant,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -51,8 +50,10 @@ impl AddressKey {
 }
 
 pub struct Collector {
-    v4_netmask: u8,
-    v6_netmask: u8,
+    v4_src_netmask: u8,
+    v6_src_netmask: u8,
+    v4_dst_netmask: u8,
+    v6_dst_netmask: u8,
     buckets: Vec<f64>,
     addresses: Cache<AddressKey, AddressEntry>,
     metrics: Arc<ArcSwap<HashMap<NetworkKey, (Histogram, Instant)>>>,
@@ -62,10 +63,19 @@ pub struct Collector {
 }
 
 impl Collector {
-    pub fn new(v4_netmask: u8, v6_netmask: u8, buckets: Vec<f64>, name_prefix: String) -> Self {
+    pub fn new(
+        v4_src_netmask: u8,
+        v6_src_netmask: u8,
+        v4_dst_netmask: u8,
+        v6_dst_netmask: u8,
+        buckets: Vec<f64>,
+        name_prefix: String,
+    ) -> Self {
         Self {
-            v4_netmask,
-            v6_netmask,
+            v4_src_netmask,
+            v6_src_netmask,
+            v4_dst_netmask,
+            v6_dst_netmask,
             buckets,
             addresses: Cache::builder()
                 .weigher(|k: &AddressKey, _| -> u32 { k.size() + size_of::<AddressEntry>() as u32 })
@@ -88,9 +98,9 @@ impl Collector {
             let src_net = IpNet::new(
                 key.src,
                 if key.src.is_ipv4() {
-                    self.v4_netmask
+                    self.v4_src_netmask
                 } else {
-                    self.v6_netmask
+                    self.v6_src_netmask
                 },
             )
             .unwrap()
@@ -98,9 +108,9 @@ impl Collector {
             let dst_net = IpNet::new(
                 key.dst,
                 if key.dst.is_ipv4() {
-                    self.v4_netmask
+                    self.v4_dst_netmask
                 } else {
-                    self.v6_netmask
+                    self.v6_dst_netmask
                 },
             )
             .unwrap()
@@ -139,14 +149,22 @@ impl Collector {
                     vec![
                         Label::new("src_network", key.src.addr().to_string()),
                         Label::new(
-                            "netmask",
+                            "src_netmask",
                             if key.src.addr().is_ipv4() {
-                                self.v4_netmask.to_string()
+                                self.v4_src_netmask.to_string()
                             } else {
-                                self.v6_netmask.to_string()
+                                self.v6_src_netmask.to_string()
                             },
                         ),
                         Label::new("dst_network", key.dst.addr().to_string()),
+                        Label::new(
+                            "dst_netmask",
+                            if key.dst.addr().is_ipv4() {
+                                self.v4_dst_netmask.to_string()
+                            } else {
+                                self.v6_dst_netmask.to_string()
+                            },
+                        ),
                         Label::new("latency_type", key.latency_type.clone()),
                         Label::new("host", key.host.clone()),
                     ],
@@ -218,10 +236,10 @@ impl Collector {
                         Label::new("src_network", key.src.addr().to_string()),
                         Label::new(
                             "netmask",
-                            if key.src.addr().is_ipv4() {
-                                self.v4_netmask.to_string()
+                            if key.addr().is_ipv4() {
+                                self.v4_src_netmask.to_string()
                             } else {
-                                self.v6_netmask.to_string()
+                                self.v6_src_netmask.to_string()
                             },
                         ),
                         Label::new("dst_network", key.dst.addr().to_string()),

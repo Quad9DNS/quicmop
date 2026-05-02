@@ -146,6 +146,8 @@ impl Service<InitState> {
         let collector = Arc::new(Collector::new(
             24,
             56,
+            24,
+            56,
             config.metrics.buckets.clone(),
             config.metrics.prefix.clone(),
         ));
