@@ -8,7 +8,7 @@ use std::{
 
 use arc_swap::ArcSwap;
 use ipnet::IpNet;
-use metrics::{Key, Label};
+use metrics::{Key, Label, Unit};
 use metrics_exporter_prometheus::{LabelSet, formatting};
 use metrics_util::storage::Histogram;
 use moka::future::Cache;
@@ -125,13 +125,20 @@ impl Collector {
                 .entry(net_key.clone())
                 .or_insert((Histogram::new(&self.buckets).unwrap(), Instant::now()));
             x.0.record(entry.min_rtt_us as f64 / 1000.0);
-            unique_addresses.entry(net_key).or_default().insert(key.src);
+            unique_addresses.entry(src_net).or_default().insert(key.src);
         }
 
         histograms.retain(|_, (_, time)| *time + self.timeout >= Instant::now());
 
         let mut intermediate = String::new();
         if !histograms.is_empty() {
+            formatting::write_help_line(
+                &mut intermediate,
+                &self.bucket_name,
+                None,
+                None,
+                "minimum roundtrip time per connection in milliseconds",
+            );
             formatting::write_type_line(
                 &mut intermediate,
                 &self.bucket_name,
@@ -176,7 +183,7 @@ impl Collector {
                 formatting::write_metric_line(
                     &mut intermediate,
                     &self.bucket_name,
-                    Some("bucket"),
+                    None,
                     &labels,
                     Some(("le", le)),
                     count,
@@ -186,7 +193,7 @@ impl Collector {
             formatting::write_metric_line(
                 &mut intermediate,
                 &self.bucket_name,
-                Some("bucket"),
+                None,
                 &labels,
                 Some(("le", "+Inf")),
                 histogram.count(),
@@ -209,7 +216,7 @@ impl Collector {
                 &labels,
                 None,
                 histogram.count(),
-                None,
+                Some(Unit::Count),
             );
 
             // Each set gets its own write invocation.
@@ -220,10 +227,17 @@ impl Collector {
         }
 
         if !unique_addresses.is_empty() {
+            formatting::write_help_line(
+                &mut intermediate,
+                &self.unique_addresses_name,
+                Some(Unit::Count),
+                None,
+                "number of unique addresses observed from a network",
+            );
             formatting::write_type_line(
                 &mut intermediate,
                 &self.unique_addresses_name,
-                None,
+                Some(Unit::Count),
                 None,
                 "counter",
             );
@@ -256,7 +270,7 @@ impl Collector {
                 &labels,
                 None,
                 addresses.len() as u64,
-                None,
+                Some(Unit::Count),
             );
             output.write_all(intermediate.as_bytes()).unwrap();
             intermediate.clear();
