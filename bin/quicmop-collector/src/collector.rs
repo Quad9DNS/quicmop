@@ -92,7 +92,7 @@ impl Collector {
     pub fn render_to_write(&self, output: &mut impl io::Write) {
         let mut histograms = (**self.metrics.load()).clone();
 
-        let mut unique_addresses: HashMap<NetworkKey, HashSet<IpAddr>> = HashMap::new();
+        let mut unique_addresses: HashMap<IpNet, HashSet<IpAddr>> = HashMap::new();
 
         for (key, entry) in self.addresses.iter() {
             let src_net = IpNet::new(
@@ -247,7 +247,7 @@ impl Collector {
                 &Key::from_parts(
                     self.bucket_name.clone(),
                     vec![
-                        Label::new("src_network", key.src.addr().to_string()),
+                        Label::new("network", key.addr().to_string()),
                         Label::new(
                             "netmask",
                             if key.addr().is_ipv4() {
@@ -256,9 +256,6 @@ impl Collector {
                                 self.v6_src_netmask.to_string()
                             },
                         ),
-                        Label::new("dst_network", key.dst.addr().to_string()),
-                        Label::new("latency_type", key.latency_type.clone()),
-                        Label::new("host", key.host.clone()),
                     ],
                 ),
                 &Default::default(),
@@ -301,20 +298,21 @@ impl QuicmopSocketMetricsService for Collector {
                         .and_then(|i| i.clone().try_into().ok())
                         .unwrap();
                     self.addresses
-                        .insert(
-                            AddressKey {
-                                src,
-                                dst,
-                                latency_type: metric.latency_type.clone(),
-                                host: metric.host.clone(),
+                        .entry(AddressKey {
+                            src,
+                            dst,
+                            latency_type: metric.latency_type.clone(),
+                            host: metric.host.clone(),
+                        })
+                        .or_insert_with_if(
+                            async {
+                                AddressEntry {
+                                    min_rtt_us: item_metrics.min_rtt_us,
+                                }
                             },
-                            AddressEntry {
-                                min_rtt_us: item_metrics.min_rtt_us,
-                                last_update: Instant::now(),
-                            },
+                            |v| item_metrics.min_rtt_us < v.min_rtt_us,
                         )
                         .await;
-                    // histogram!("bucket", "src_network" => src_net.addr().to_string(), "netmask" => if src.is_ipv4() { self.v4_netmask.to_string() } else { self.v6_netmask.to_string() }, "dst_network" => dst_net.addr().to_string(), "latency_type" => metric.latency_type.clone(), "host" => metric.host.clone()).record(item_metrics.min_rtt_us as f64 / 1000.0);
                 }
             }
         }
