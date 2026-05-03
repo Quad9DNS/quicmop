@@ -1,0 +1,39 @@
+## Different inputs can be configured here (quicmop gRPC)
+# input:
+#   grpc_server_port: 8765
+#   grpc_server_addr: 0.0.0.0
+
+## Different outputs can be configured here (file output, stdout, scrape endpoint)
+# output:
+  ## Export metrics to file
+  # file:
+    # file_path: "/var/lib/node-exporter/stringsimile.prom"
+    # export_interval_secs: 15
+    # mode: 0o644
+
+  ## Export metrics to stdout
+  # stdout:
+    # export_interval_secs: 15
+
+  ## Export metrics via scrape endpoint (/metrics)
+  # scrape:
+    # addr: 0.0.0.0:9000
+
+## metrics can be configured here
+## All metrics are exported in prometheus format
+# metrics:
+  ## Prefix to add to all metrics names
+  # name_prefix: quicmop
+
+  ## Buckets to store rtt values in
+  # buckets: [0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0]
+
+## collector process configuration
+# process:
+  ## Log level can be configured
+  ## Valid levels are: "error", "warn", "info", "debug", "trace"
+  # log_level: "INFO"
+
+  ## Graceful shutdown timeout in milliseconds
+  ## When SIGINT is received, quicmop collector will allow time for processing to complete gracefully, before resorting to forceful shutdown
+  # shutdown_timeout_ms: 60000
