@@ -1,4 +1,4 @@
-use std::{ops::Deref, sync::Arc, time::Duration};
+use std::{sync::Arc, time::Duration};
 
 use futures::StreamExt;
 use metrics_exporter_prometheus::PrometheusHandle;

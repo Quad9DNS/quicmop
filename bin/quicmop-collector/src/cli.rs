@@ -28,10 +28,6 @@ pub struct CliArgs {
     /// Prefix to add to all metrics names.
     #[clap(long, default_value = "quicmop")]
     pub metrics_name_prefix: String,
-
-    /// Number of threads to use.
-    #[clap(short, long)]
-    pub threads: Option<usize>,
 }
 
 fn quicmop_collector_version() -> String {

@@ -80,7 +80,6 @@ impl Service<InitState> {
         let init_time = Instant::now();
 
         let runtime = tokio::runtime::Builder::new_multi_thread()
-            .worker_threads(config.process.threads)
             .enable_all()
             .build()
             .expect("Building async runtime failed!");

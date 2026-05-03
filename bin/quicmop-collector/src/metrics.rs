@@ -116,7 +116,7 @@ impl MetricsProcessor {
             }
         });
 
-        for metrics_exporter in self.config.metrics.exporters.clone() {
+        for metrics_exporter in self.config.output.exporters.clone() {
             export_tasks.spawn_on(
                 metrics_exporter
                     .start_exporting(self.metrics_handle.clone(), Arc::clone(&collector))

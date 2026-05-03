@@ -33,6 +33,7 @@ impl FileBasedConfig {
     pub fn build(&self) -> crate::Result<ServiceConfig> {
         Ok(ServiceConfig {
             input: self.input.clone(),
+            output: self.output.build()?,
             metrics: self.metrics.build()?,
             process: self.process.build()?,
         })
@@ -54,24 +55,17 @@ impl Default for InputConfig {
     }
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct OutputConfig {}
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct MetricsConfig {
+struct OutputConfig {
     #[serde(default)]
     file: Option<FileExporterConfig>,
     #[serde(default)]
     stdout: Option<StdoutExporterConfig>,
     #[serde(default)]
     scrape: Option<ScrapeExporterConfig>,
-    #[serde(default = "default_metrics_prefix")]
-    name_prefix: String,
-    #[serde(default = "default_buckets")]
-    buckets: Vec<f64>,
 }
 
-impl Default for MetricsConfig {
+impl Default for OutputConfig {
     fn default() -> Self {
         Self {
             file: None,
@@ -79,14 +73,12 @@ impl Default for MetricsConfig {
             scrape: Some(ScrapeExporterConfig {
                 addr: SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 9000),
             }),
-            name_prefix: default_metrics_prefix(),
-            buckets: default_buckets(),
         }
     }
 }
 
-impl MetricsConfig {
-    pub fn build(&self) -> crate::Result<ValidatedMetricsConfig> {
+impl OutputConfig {
+    pub fn build(&self) -> crate::Result<ValidatedOutputConfig> {
         let mut exporters = HashSet::default();
         if let Some(config) = &self.file {
             exporters.insert(MetricsExporter::File(config.clone()));
@@ -98,8 +90,30 @@ impl MetricsConfig {
             exporters.insert(MetricsExporter::Scrape(config.clone()));
         }
 
+        Ok(ValidatedOutputConfig { exporters })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+struct MetricsConfig {
+    #[serde(default = "default_metrics_prefix")]
+    name_prefix: String,
+    #[serde(default = "default_buckets")]
+    buckets: Vec<f64>,
+}
+
+impl Default for MetricsConfig {
+    fn default() -> Self {
+        Self {
+            name_prefix: default_metrics_prefix(),
+            buckets: default_buckets(),
+        }
+    }
+}
+
+impl MetricsConfig {
+    pub fn build(&self) -> crate::Result<ValidatedMetricsConfig> {
         Ok(ValidatedMetricsConfig {
-            exporters,
             prefix: self.name_prefix.clone(),
             buckets: self.buckets.clone(),
         })
@@ -108,8 +122,6 @@ impl MetricsConfig {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProcessConfig {
-    #[serde(default = "default_thread_count")]
-    threads: usize,
     #[serde(default = "default_log_level")]
     log_level: String,
     #[serde(default = "default_shutdown_duration_ms")]
@@ -119,7 +131,6 @@ pub struct ProcessConfig {
 impl Default for ProcessConfig {
     fn default() -> Self {
         Self {
-            threads: default_thread_count(),
             log_level: default_log_level(),
             shutdown_timeout_ms: default_shutdown_duration_ms(),
         }
@@ -129,7 +140,6 @@ impl Default for ProcessConfig {
 impl ProcessConfig {
     pub fn build(&self) -> crate::Result<ValidatedProcessConfig> {
         Ok(ValidatedProcessConfig {
-            threads: self.threads,
             log_level: self.log_level.parse()?,
             shutdown_timeout: Duration::from_millis(self.shutdown_timeout_ms.try_into()?),
         })
@@ -138,12 +148,6 @@ impl ProcessConfig {
 
 fn default_log_level() -> String {
     "info".to_string()
-}
-
-fn default_thread_count() -> usize {
-    std::thread::available_parallelism()
-        .map(|r| r.get())
-        .unwrap_or(1)
 }
 
 fn default_shutdown_duration_ms() -> usize {
@@ -164,11 +168,9 @@ fn default_buckets() -> Vec<f64> {
     ]
 }
 
-/// Parsed and validated process configuration for the stringsimile service.
+/// Parsed and validated process configuration for the quicmop service.
 #[derive(Debug, Clone)]
 pub struct ValidatedProcessConfig {
-    /// Number of threads to use
-    pub threads: usize,
     /// Internal logging level
     pub log_level: Level,
     /// Graceful shutdown timeout. When shutdown is requested (SIGINT), the process will wait for
@@ -180,11 +182,6 @@ pub struct ValidatedProcessConfig {
 impl ValidatedProcessConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
-            threads: if other.threads == default_thread_count() {
-                self.threads
-            } else {
-                other.threads
-            },
             log_level: self.log_level.max(other.log_level),
             shutdown_timeout: if other.shutdown_timeout == default_shutdown_duration() {
                 self.shutdown_timeout
@@ -195,11 +192,24 @@ impl ValidatedProcessConfig {
     }
 }
 
-/// Configuration for stringsimile metrics.
+/// Configuration for quicmop metrics.
 #[derive(Debug, Clone)]
-pub struct ValidatedMetricsConfig {
+pub struct ValidatedOutputConfig {
     /// List of metrics exporters to export metrics with.
     pub exporters: HashSet<MetricsExporter>,
+}
+
+impl ValidatedOutputConfig {
+    pub fn merge(self, other: Self) -> Self {
+        Self {
+            exporters: self.exporters.into_iter().chain(other.exporters).collect(),
+        }
+    }
+}
+
+/// Configuration for quicmop metrics.
+#[derive(Debug, Clone)]
+pub struct ValidatedMetricsConfig {
     /// List of buckets to store metrics in.
     pub buckets: Vec<f64>,
     /// Prefix to apply to all metrics names.
@@ -209,7 +219,6 @@ pub struct ValidatedMetricsConfig {
 impl ValidatedMetricsConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
-            exporters: self.exporters.into_iter().chain(other.exporters).collect(),
             buckets: if other.buckets.is_empty() {
                 self.buckets
             } else {
@@ -224,11 +233,13 @@ impl ValidatedMetricsConfig {
     }
 }
 
-/// Parsed and validated configuration for the stringsimile service.
+/// Parsed and validated configuration for the quicmop service.
 #[derive(Debug, Clone)]
 pub struct ServiceConfig {
     /// Configuration for input.
     pub input: InputConfig,
+    /// Configuration for output.
+    pub output: ValidatedOutputConfig,
     /// Configuration for metrics.
     pub metrics: ValidatedMetricsConfig,
     /// Configuration for the process.
@@ -239,6 +250,7 @@ impl ServiceConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
             input: self.input,
+            output: self.output.merge(other.output),
             metrics: self.metrics.merge(other.metrics),
             process: self.process.merge(other.process),
         }
@@ -298,20 +310,23 @@ impl TryFrom<CliArgs> for ServiceConfig {
         }
 
         let process_config = ValidatedProcessConfig {
-            threads: value.threads.unwrap_or(default_thread_count()),
             // Any default for now, will be replaced with the calculated level
             log_level: Level::INFO,
             shutdown_timeout: default_shutdown_duration(),
         };
 
-        let metrics_config = ValidatedMetricsConfig {
+        let output_config = ValidatedOutputConfig {
             exporters: HashSet::new(),
+        };
+
+        let metrics_config = ValidatedMetricsConfig {
             prefix: value.metrics_name_prefix,
             buckets: Vec::default(),
         };
 
         let cli_config = ServiceConfig {
             input: input_config,
+            output: output_config,
             metrics: metrics_config,
             process: process_config,
         };

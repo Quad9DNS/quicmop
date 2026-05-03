@@ -1,4 +1,4 @@
-//! OS signal handling for stringsimile service.
+//! OS signal handling for quicmop service.
 
 use tokio::{
     runtime::Runtime,
