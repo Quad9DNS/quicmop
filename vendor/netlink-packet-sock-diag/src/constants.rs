@@ -229,6 +229,7 @@ pub const SOCK_RAW: u8 = libc::SOCK_RAW as u8;
 /// ordering.
 pub const SOCK_RDM: u8 = libc::SOCK_RDM as u8;
 /// Obsolete and should not be used in new programs; see `packet(7)`.
+#[allow(deprecated)]
 pub const SOCK_PACKET: u8 = libc::SOCK_PACKET as u8;
 
 /// Nothing bad has been observed recently. No apparent reordering, packet loss,
