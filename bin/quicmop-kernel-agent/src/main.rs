@@ -12,14 +12,20 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut osargs = args();
     osargs.next();
     let url = osargs.next().unwrap_or("grpc://localhost:8765".to_string());
-    println!("{}", url);
+
     let mut client = QuicmopSocketMetricsServiceClient::connect(url)
         .await
         .unwrap();
 
-    let requests_stream = NetlinkLoader::new(Duration::from_secs(5))
-        .start_loading()
-        .unwrap();
+    let requests_stream = NetlinkLoader::new(
+        Duration::from_secs(5),
+        rustix::system::uname()
+            .nodename()
+            .to_string_lossy()
+            .to_string(),
+    )
+    .start_loading()
+    .unwrap();
 
     client.stream_metrics(requests_stream).await.unwrap();
     Ok(())
