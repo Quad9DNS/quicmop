@@ -11,6 +11,7 @@ use futures::FutureExt;
 use metrics::{Unit, describe_gauge, gauge};
 use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
 use metrics_util::layers::{PrefixLayer, Stack};
+use netobserv_flow_proto::proto::collector_server::CollectorServer;
 use quicmop_metrics::metrics::MetricsProcessor;
 use quicmop_proto::proto::quicmop_socket_metrics_service_server::QuicmopSocketMetricsServiceServer;
 use quicmop_signals::{ServiceOsSignals, ServiceSignal};
@@ -160,14 +161,35 @@ impl Service<InitState> {
             shutdown_tx.subscribe(),
         ));
 
+        let mut server_shutdown_rx = shutdown_tx.subscribe();
         let grpc_server_handle = handle.spawn(
             Server::builder()
-                .add_service(QuicmopSocketMetricsServiceServer::from_arc(collector))
+                .add_service(QuicmopSocketMetricsServiceServer::from_arc(Arc::clone(
+                    &collector,
+                )))
                 .serve_with_shutdown(
                     SocketAddr::new(config.input.grpc_server_addr, config.input.grpc_server_port),
-                    async move { shutdown_rx.recv().map(|_| ()).await },
+                    async move { server_shutdown_rx.recv().map(|_| ()).await },
                 ),
         );
+        let netobserv_grpc_server_handle =
+            if let Some(addr) = config.input.netobserv_grpc_server_addr {
+                Some(
+                    handle.spawn(
+                        Server::builder()
+                            .add_service(CollectorServer::from_arc(collector))
+                            .serve_with_shutdown(
+                                SocketAddr::new(
+                                    addr,
+                                    config.input.netobserv_grpc_server_port.unwrap_or(2055),
+                                ),
+                                async move { shutdown_rx.recv().map(|_| ()).await },
+                            ),
+                    ),
+                )
+            } else {
+                None
+            };
 
         Ok(Service {
             config,
@@ -175,6 +197,7 @@ impl Service<InitState> {
                 signals,
                 metrics_handle,
                 grpc_server_handle,
+                netobserv_grpc_server_handle,
                 shutdown_tx,
             },
         })
@@ -185,6 +208,7 @@ pub struct StartedState {
     pub signals: ServiceOsSignals,
     pub metrics_handle: JoinHandle<()>,
     pub grpc_server_handle: JoinHandle<Result<(), tonic::transport::Error>>,
+    pub netobserv_grpc_server_handle: Option<JoinHandle<Result<(), tonic::transport::Error>>>,
     pub shutdown_tx: Sender<()>,
 }
 
@@ -201,6 +225,7 @@ impl Service<StartedState> {
                     signals,
                     metrics_handle,
                     grpc_server_handle,
+                    netobserv_grpc_server_handle,
                     shutdown_tx,
                 },
         } = self;
@@ -249,6 +274,10 @@ impl Service<StartedState> {
         // TODO: Use shutdown tx instead
         grpc_server_handle.abort();
         let _ = grpc_server_handle.await;
+        if let Some(netobserv_grpc_server_handle) = netobserv_grpc_server_handle {
+            netobserv_grpc_server_handle.abort();
+            let _ = netobserv_grpc_server_handle.await;
+        }
 
         Service {
             config,

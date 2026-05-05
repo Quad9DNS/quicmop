@@ -13,6 +13,7 @@ homepage = "https://github.com/Quad9DNS/quicmop"
 version = "0.1.0"
 
 [workspace.dependencies]
+netobserv-flow-proto = { path = "./crates/netobserv-flow-proto" }
 quicmop-metrics-exporters = { path = "./crates/quicmop-metrics-exporters" }
 quicmop-metrics = { path = "./crates/quicmop-metrics" }
 quicmop-proto = { path = "./crates/quicmop-proto" }
@@ -35,6 +36,7 @@ netlink-packet-core = "0.8.1"
 netlink-packet-route = { version = "0.30.0" }
 netlink-packet-sock-diag = { path = "./vendor/netlink-packet-sock-diag", features = ["rich_nlas"] }
 prost = { version = "0.14.3" }
+prost-types = { version = "0.14.3" }
 rustix = { version = "1.1.4" }
 serde = { version = "1.0.219" }
 serde_json = { version = "1.0.140" }

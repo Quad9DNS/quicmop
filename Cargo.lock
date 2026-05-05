@@ -1210,6 +1210,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "netobserv-flow-proto"
+version = "0.1.0"
+dependencies = [
+ "prost",
+ "prost-types",
+ "tonic",
+ "tonic-prost",
+ "tonic-prost-build",
+]
+
+[[package]]
 name = "nibble_vec"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1550,6 +1561,7 @@ dependencies = [
  "metrics-exporter-prometheus",
  "metrics-util 0.19.1",
  "moka",
+ "netobserv-flow-proto",
  "quicmop-metrics",
  "quicmop-metrics-exporters",
  "quicmop-proto",

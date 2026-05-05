@@ -12,10 +12,7 @@ use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use tracing::Level;
 
-use crate::{
-    cli::CliArgs,
-    error::{ConfigYamlParsingSnafu, FileReadSnafu},
-};
+use crate::{cli::CliArgs, error::ConfigYamlParsingSnafu};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FileBasedConfig {
@@ -44,6 +41,8 @@ impl FileBasedConfig {
 pub struct InputConfig {
     pub grpc_server_port: u16,
     pub grpc_server_addr: IpAddr,
+    pub netobserv_grpc_server_port: Option<u16>,
+    pub netobserv_grpc_server_addr: Option<IpAddr>,
 }
 
 impl Default for InputConfig {
@@ -51,6 +50,8 @@ impl Default for InputConfig {
         Self {
             grpc_server_port: 8765,
             grpc_server_addr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            netobserv_grpc_server_port: None,
+            netobserv_grpc_server_addr: None,
         }
     }
 }
@@ -308,6 +309,14 @@ impl TryFrom<CliArgs> for ServiceConfig {
             && let Ok(addr) = addr.parse()
         {
             input_config.grpc_server_addr = addr;
+        }
+        if let Some(port) = value.netobserv_grpc_server_port {
+            input_config.netobserv_grpc_server_port = Some(port);
+        }
+        if let Some(addr) = value.netobserv_grpc_server_addr
+            && let Ok(addr) = addr.parse()
+        {
+            input_config.netobserv_grpc_server_addr = Some(addr);
         }
 
         let process_config = ValidatedProcessConfig {

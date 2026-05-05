@@ -12,11 +12,14 @@ use metrics::{Key, Label, Unit};
 use metrics_exporter_prometheus::{LabelSet, formatting};
 use metrics_util::storage::Histogram;
 use moka::future::Cache;
+use netobserv_flow_proto::proto::{CollectorReply, Direction, Records};
 use quicmop_metrics_exporters::MetricsExtraProvider;
 use quicmop_proto::proto::{
     AgentMetricsRequest, CollectorResponse,
     quicmop_socket_metrics_service_server::QuicmopSocketMetricsService,
 };
+
+const IPPROTO_TCP: u32 = 6;
 
 #[derive(Clone)]
 struct AddressEntry {
@@ -320,5 +323,60 @@ impl QuicmopSocketMetricsService for Collector {
             }
         }
         Ok(tonic::Response::new(CollectorResponse {}))
+    }
+}
+
+#[tonic::async_trait]
+impl netobserv_flow_proto::proto::collector_server::Collector for Collector {
+    async fn send(
+        &self,
+        request: tonic::Request<Records>,
+    ) -> Result<tonic::Response<CollectorReply>, tonic::Status> {
+        let inner = request.into_inner();
+        for entry in inner.entries.iter().filter(|e| {
+            e.direction() == Direction::Ingress
+                && e.transport
+                    .map(|t| t.protocol == IPPROTO_TCP)
+                    .unwrap_or(false)
+        }) {
+            if let Some(rtt) = entry.time_flow_rtt
+                && let Some(network) = &entry.network
+            {
+                let rtt = Duration::from_secs(rtt.seconds as u64)
+                    + Duration::from_nanos(rtt.nanos as u64);
+                let src: IpAddr = network
+                    .src_addr
+                    .as_ref()
+                    .and_then(|i| i.clone().try_into().ok())
+                    .unwrap();
+                let dst: IpAddr = network
+                    .dst_addr
+                    .as_ref()
+                    .and_then(|i| i.clone().try_into().ok())
+                    .unwrap();
+                self.addresses
+                    .entry(AddressKey {
+                        src,
+                        dst,
+                        latency_type: "TCP".to_string(),
+                        host: entry
+                            .agent_ip
+                            .as_ref()
+                            .and_then(|i| IpAddr::try_from(i.clone()).ok())
+                            .map(|i| i.to_string())
+                            .unwrap_or_default(),
+                    })
+                    .or_insert_with_if(
+                        async {
+                            AddressEntry {
+                                min_rtt_us: rtt.as_micros() as u64,
+                            }
+                        },
+                        |v| (rtt.as_micros() as u64) < v.min_rtt_us,
+                    )
+                    .await;
+            }
+        }
+        Ok(tonic::Response::new(CollectorReply {}))
     }
 }

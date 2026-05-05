@@ -25,6 +25,16 @@ pub struct CliArgs {
     #[clap(short = 'a', long = "address")]
     pub grpc_server_addr: Option<String>,
 
+    /// Port for the netobserv collector gRPC server, making this collector act as a collector for
+    /// netobserv eBPF agent.
+    #[clap(long = "netobserv_collector_port")]
+    pub netobserv_grpc_server_port: Option<u16>,
+
+    /// Port for the netobserv collector gRPC server, making this collector act a a collector for
+    /// netobserv eBPF agent.
+    #[clap(long = "netobserv_collector_address")]
+    pub netobserv_grpc_server_addr: Option<String>,
+
     /// Prefix to add to all metrics names.
     #[clap(long, default_value = "quicmop")]
     pub metrics_name_prefix: String,

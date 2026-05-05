@@ -55,6 +55,7 @@ metrics-exporter-prometheus.workspace = true
 metrics-util.workspace = true
 metrics.workspace = true
 moka.workspace = true
+netobserv-flow-proto.workspace = true
 quicmop-metrics-exporters.workspace = true
 quicmop-metrics.workspace = true
 quicmop-proto.workspace = true
