@@ -1541,7 +1541,6 @@ version = "0.1.0"
 dependencies = [
  "arc-swap",
  "async-stream",
- "axum",
  "clap",
  "criterion",
  "exitcode",
@@ -1551,7 +1550,10 @@ dependencies = [
  "metrics-exporter-prometheus",
  "metrics-util 0.19.1",
  "moka",
+ "quicmop-metrics",
+ "quicmop-metrics-exporters",
  "quicmop-proto",
+ "quicmop-signals",
  "serde",
  "serde_json",
  "serde_yaml",
@@ -1569,15 +1571,55 @@ name = "quicmop-kernel-agent"
 version = "0.1.0"
 dependencies = [
  "async-stream",
+ "clap",
+ "exitcode",
+ "futures",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "metrics-util 0.19.1",
  "netlink-packet-core",
  "netlink-packet-route",
  "netlink-packet-sock-diag",
  "netlink-sys",
+ "quicmop-metrics",
+ "quicmop-metrics-exporters",
  "quicmop-proto",
+ "quicmop-signals",
  "rustix",
+ "serde",
+ "serde_yaml",
+ "snafu",
  "tokio",
  "tokio-stream",
  "tonic",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "quicmop-metrics"
+version = "0.1.0"
+dependencies = [
+ "futures",
+ "metrics",
+ "metrics-exporter-prometheus",
+ "quicmop-metrics-exporters",
+ "sysinfo",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "quicmop-metrics-exporters"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "futures",
+ "metrics-exporter-prometheus",
+ "serde",
+ "tokio",
+ "tokio-stream",
+ "tracing",
 ]
 
 [[package]]
@@ -1588,6 +1630,16 @@ dependencies = [
  "tonic",
  "tonic-prost",
  "tonic-prost-build",
+]
+
+[[package]]
+name = "quicmop-signals"
+version = "0.1.0"
+dependencies = [
+ "async-stream",
+ "tokio",
+ "tokio-stream",
+ "tracing",
 ]
 
 [[package]]

@@ -15,6 +15,12 @@ pub struct SystemMetrics {
     service_cpu_usage: Gauge,
 }
 
+impl Default for SystemMetrics {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SystemMetrics {
     pub fn new() -> Self {
         let mut system = System::new_all();

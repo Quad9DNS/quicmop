@@ -1,0 +1,19 @@
+[package]
+name = "quicmop-metrics-exporters"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+
+[dependencies]
+axum.workspace = true
+futures.workspace = true
+metrics-exporter-prometheus = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+tokio = { workspace = true, features = ["full"] }
+tokio-stream.workspace = true
+tracing.workspace = true

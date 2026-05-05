@@ -5,7 +5,7 @@ use tracing::debug;
 use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
 
-use crate::collector::Collector;
+use crate::MetricsExtraProvider;
 
 use super::MetricsExporterTaskBuilder;
 
@@ -24,18 +24,18 @@ impl ScrapeMetricsExporter {
     }
 }
 
-impl MetricsExporterTaskBuilder for ScrapeMetricsExporter {
+impl<T: MetricsExtraProvider + 'static> MetricsExporterTaskBuilder<T> for ScrapeMetricsExporter {
     async fn start_exporting(
         self,
         handle: PrometheusHandle,
-        collector: Arc<Collector>,
+        extra_provider: Arc<T>,
     ) -> crate::Result<()> {
         let app = Router::new().route(
             "/metrics",
             get(move || {
                 let mut buf = Vec::new();
                 handle.render_to_write(&mut buf).unwrap();
-                collector.render_to_write(&mut buf);
+                extra_provider.render_to_write(&mut buf);
                 ready(String::from_utf8(buf).unwrap())
             }),
         );

@@ -13,7 +13,10 @@ homepage = "https://github.com/Quad9DNS/quicmop"
 version = "0.1.0"
 
 [workspace.dependencies]
+quicmop-metrics-exporters = { path = "./crates/quicmop-metrics-exporters" }
+quicmop-metrics = { path = "./crates/quicmop-metrics" }
 quicmop-proto = { path = "./crates/quicmop-proto" }
+quicmop-signals = { path = "./crates/quicmop-signals" }
 
 arc-swap = { version = "1.9.1" }
 async-stream = { version = "0.3.6" }

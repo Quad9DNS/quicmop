@@ -1,30 +1,29 @@
 #![allow(missing_docs)]
 use std::io;
-use std::net::SocketAddr;
 use std::process::ExitStatus;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use exitcode::ExitCode;
 use futures::FutureExt;
 use metrics::{Unit, describe_gauge, gauge};
-use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
+use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{PrefixLayer, Stack};
 use quicmop_metrics::metrics::MetricsProcessor;
-use quicmop_proto::proto::quicmop_socket_metrics_service_server::QuicmopSocketMetricsServiceServer;
+use quicmop_metrics_exporters::NoopMetricsExtraProvider;
+use quicmop_proto::proto::quicmop_socket_metrics_service_client::QuicmopSocketMetricsServiceClient;
 use quicmop_signals::{ServiceOsSignals, ServiceSignal};
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time::interval;
-use tonic::transport::Server;
 use tracing::{Level, error, info, warn};
 use tracing_subscriber::fmt::format::FmtSpan;
 
 use crate::cli::CliArgs;
-use crate::collector::Collector;
 use crate::config::ServiceConfig;
+use crate::netlink_loader::NetlinkLoader;
 
 use std::os::unix::process::ExitStatusExt;
 use tokio::runtime::Handle;
@@ -92,13 +91,7 @@ impl Service<InitState> {
             .with_writer(io::stderr)
             .init();
 
-        let metrics_recorder = PrometheusBuilder::new()
-            .set_buckets_for_metric(
-                Matcher::Suffix("bucket".to_string()),
-                &config.metrics.buckets,
-            )
-            .unwrap()
-            .build_recorder();
+        let metrics_recorder = PrometheusBuilder::new().build_recorder();
         let metrics_handle = metrics_recorder.handle();
 
         let layers = Stack::new(metrics_recorder);
@@ -117,7 +110,7 @@ impl Service<InitState> {
 
         let signals = ServiceOsSignals::new(&runtime);
         let metrics_processor = MetricsProcessor::from_exporters(
-            config.output.exporters.clone(),
+            config.metrics.exporters.clone(),
             metrics_handle,
             init_time,
         );
@@ -143,38 +136,49 @@ impl Service<InitState> {
                 },
         } = self;
 
-        let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
-
-        let collector = Arc::new(Collector::new(
-            24,
-            56,
-            24,
-            56,
-            config.metrics.buckets.clone(),
-            config.metrics.prefix.clone(),
-        ));
+        let (shutdown_tx, shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
 
         let metrics_handle = handle.spawn(metrics_processor.run(
             handle.clone(),
-            Arc::clone(&collector),
-            shutdown_tx.subscribe(),
+            Arc::new(NoopMetricsExtraProvider),
+            shutdown_rx,
         ));
 
-        let grpc_server_handle = handle.spawn(
-            Server::builder()
-                .add_service(QuicmopSocketMetricsServiceServer::from_arc(collector))
-                .serve_with_shutdown(
-                    SocketAddr::new(config.input.grpc_server_addr, config.input.grpc_server_port),
-                    async move { shutdown_rx.recv().map(|_| ()).await },
-                ),
-        );
+        let hostname = config.output.collector_hostname.clone();
+        let port = config.output.collector_port;
+        let url = format!("grpc://{hostname}:{port}");
+
+        let requests_stream = NetlinkLoader::new(
+            Duration::from_secs(5),
+            config.agent.hostname.clone().clone().unwrap_or_else(|| {
+                rustix::system::uname()
+                    .nodename()
+                    .to_string_lossy()
+                    .to_string()
+            }),
+        )
+        .start_loading()
+        .unwrap();
+
+        let grpc_client_handle = handle.spawn(async move {
+            let mut client = QuicmopSocketMetricsServiceClient::connect(url)
+                .await
+                .unwrap();
+
+            client
+                .stream_metrics(requests_stream)
+                .boxed()
+                .await
+                .unwrap();
+            Ok(())
+        });
 
         Ok(Service {
             config,
             state: StartedState {
                 signals,
                 metrics_handle,
-                grpc_server_handle,
+                grpc_client_handle,
                 shutdown_tx,
             },
         })
@@ -184,7 +188,7 @@ impl Service<InitState> {
 pub struct StartedState {
     pub signals: ServiceOsSignals,
     pub metrics_handle: JoinHandle<()>,
-    pub grpc_server_handle: JoinHandle<Result<(), tonic::transport::Error>>,
+    pub grpc_client_handle: JoinHandle<Result<(), ()>>,
     pub shutdown_tx: Sender<()>,
 }
 
@@ -200,7 +204,7 @@ impl Service<StartedState> {
                 StartedState {
                     signals,
                     metrics_handle,
-                    grpc_server_handle,
+                    grpc_client_handle,
                     shutdown_tx,
                 },
         } = self;
@@ -247,8 +251,8 @@ impl Service<StartedState> {
         };
 
         // TODO: Use shutdown tx instead
-        grpc_server_handle.abort();
-        let _ = grpc_server_handle.await;
+        grpc_client_handle.abort();
+        let _ = grpc_client_handle.await;
 
         Service {
             config,

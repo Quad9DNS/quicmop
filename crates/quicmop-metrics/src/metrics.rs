@@ -1,4 +1,5 @@
 use std::{
+    collections::HashSet,
     panic,
     sync::Arc,
     time::{Duration, Instant},
@@ -7,6 +8,9 @@ use std::{
 use futures::TryFutureExt;
 use metrics::{Gauge, Unit, describe_gauge, gauge};
 use metrics_exporter_prometheus::PrometheusHandle;
+use quicmop_metrics_exporters::{
+    MetricsExporter, MetricsExporterTaskBuilder, MetricsExtraProvider,
+};
 use tokio::{
     runtime::{Handle, RuntimeMetrics},
     sync::broadcast::Receiver,
@@ -14,13 +18,10 @@ use tokio::{
 };
 use tracing::{error, info};
 
-use crate::{
-    collector::Collector, config::ServiceConfig, metrics_exporters::MetricsExporterTaskBuilder,
-    system_metrics::SystemMetrics,
-};
+use crate::system_metrics::SystemMetrics;
 
 pub struct MetricsProcessor {
-    config: ServiceConfig,
+    exporters: HashSet<MetricsExporter>,
     metrics_handle: PrometheusHandle,
     sytem_metrics: SystemMetrics,
     process_init_time: Instant,
@@ -66,23 +67,23 @@ impl TokioRuntimeMetrics {
 }
 
 impl MetricsProcessor {
-    pub fn from_config(
-        config: ServiceConfig,
+    pub fn from_exporters(
+        exporters: HashSet<MetricsExporter>,
         metrics_handle: PrometheusHandle,
         process_init_time: Instant,
     ) -> Self {
         Self {
-            config,
+            exporters,
             metrics_handle,
             sytem_metrics: SystemMetrics::new(),
             process_init_time,
         }
     }
 
-    pub async fn run(
+    pub async fn run<T: MetricsExtraProvider + 'static>(
         self,
         runtime_handle: Handle,
-        collector: Arc<Collector>,
+        extra_metrics_provider: Arc<T>,
         mut shutdown: Receiver<()>,
     ) {
         let mut export_tasks = JoinSet::new();
@@ -116,10 +117,13 @@ impl MetricsProcessor {
             }
         });
 
-        for metrics_exporter in self.config.output.exporters.clone() {
+        for metrics_exporter in self.exporters.clone() {
             export_tasks.spawn_on(
                 metrics_exporter
-                    .start_exporting(self.metrics_handle.clone(), Arc::clone(&collector))
+                    .start_exporting(
+                        self.metrics_handle.clone(),
+                        Arc::clone(&extra_metrics_provider),
+                    )
                     .map_err(|err| {
                         error!("Metrics exporter task has failed with an error: {}", err);
                     }),

@@ -11,12 +11,26 @@ version.workspace = true
 
 [dependencies]
 async-stream.workspace = true
-netlink-sys.workspace = true
+clap = { workspace = true, features = ["cargo", "derive", "string"] }
+exitcode.workspace = true
+futures.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-util.workspace = true
+metrics.workspace = true
 netlink-packet-core.workspace = true
 netlink-packet-route.workspace = true
 netlink-packet-sock-diag.workspace = true
+netlink-sys.workspace = true
+quicmop-metrics-exporters.workspace = true
+quicmop-metrics.workspace = true
 quicmop-proto.workspace = true
+quicmop-signals.workspace = true
 rustix = { workspace = true, features = ["system"] }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
+snafu.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream.workspace = true
 tonic.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true

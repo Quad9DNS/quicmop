@@ -6,7 +6,7 @@ use metrics_exporter_prometheus::PrometheusHandle;
 use serde::{Deserialize, Serialize};
 use tokio::{fs::OpenOptions, io::BufWriter, time::interval};
 
-use crate::collector::Collector;
+use crate::MetricsExtraProvider;
 
 use super::{MetricsExporterTaskBuilder, bufwriter::BufWriterMetricsExporter};
 
@@ -37,11 +37,11 @@ impl FileMetricsExporter {
     }
 }
 
-impl MetricsExporterTaskBuilder for FileMetricsExporter {
+impl<T: MetricsExtraProvider> MetricsExporterTaskBuilder<T> for FileMetricsExporter {
     async fn start_exporting(
         self,
         handle: PrometheusHandle,
-        collector: Arc<Collector>,
+        extra_provider: Arc<T>,
     ) -> crate::Result<()> {
         let mut intervals = IntervalStream::new(interval(Duration::from_secs(
             self.config.export_interval_secs,
@@ -66,7 +66,7 @@ impl MetricsExporterTaskBuilder for FileMetricsExporter {
                 BufWriter::new(file),
                 self.config.export_interval_secs,
             )
-            .export(&handle, Arc::clone(&collector))
+            .export(&handle, Arc::clone(&extra_provider))
             .await?;
         }
 

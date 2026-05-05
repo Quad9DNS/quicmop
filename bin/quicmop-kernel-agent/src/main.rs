@@ -1,32 +1,18 @@
+use std::process::ExitCode;
+
+use crate::service::Service;
+
+mod cli;
+mod config;
+mod error;
 mod netlink_loader;
+mod service;
 
-use std::{env::args, time::Duration};
+pub type Result<T> = std::result::Result<T, Box<dyn std::error::Error>>;
 
-use quicmop_proto::proto::quicmop_socket_metrics_service_client::QuicmopSocketMetricsServiceClient;
-
-use crate::netlink_loader::NetlinkLoader;
-
-// TODO: metrics, proper args, etc.
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut osargs = args();
-    osargs.next();
-    let url = osargs.next().unwrap_or("grpc://localhost:8765".to_string());
-
-    let mut client = QuicmopSocketMetricsServiceClient::connect(url)
-        .await
-        .unwrap();
-
-    let requests_stream = NetlinkLoader::new(
-        Duration::from_secs(5),
-        rustix::system::uname()
-            .nodename()
-            .to_string_lossy()
-            .to_string(),
-    )
-    .start_loading()
-    .unwrap();
-
-    client.stream_metrics(requests_stream).await.unwrap();
-    Ok(())
+fn main() -> ExitCode {
+    (Service::init_and_run()
+        .code()
+        .unwrap_or(exitcode::UNAVAILABLE) as u8)
+        .into()
 }

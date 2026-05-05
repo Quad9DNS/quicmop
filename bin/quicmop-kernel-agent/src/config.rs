@@ -12,15 +12,12 @@ use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use tracing::Level;
 
-use crate::{
-    cli::CliArgs,
-    error::{ConfigYamlParsingSnafu, FileReadSnafu},
-};
+use crate::{cli::CliArgs, error::ConfigYamlParsingSnafu};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FileBasedConfig {
     #[serde(default)]
-    input: InputConfig,
+    agent: AgentConfig,
     #[serde(default)]
     output: OutputConfig,
     #[serde(default)]
@@ -32,31 +29,39 @@ pub struct FileBasedConfig {
 impl FileBasedConfig {
     pub fn build(&self) -> crate::Result<ServiceConfig> {
         Ok(ServiceConfig {
-            input: self.input.clone(),
-            output: self.output.build()?,
+            agent: self.agent.clone(),
+            output: self.output.clone(),
             metrics: self.metrics.build()?,
             process: self.process.build()?,
         })
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct InputConfig {
-    pub grpc_server_port: u16,
-    pub grpc_server_addr: IpAddr,
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AgentConfig {
+    #[serde(default)]
+    pub hostname: Option<String>,
 }
 
-impl Default for InputConfig {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OutputConfig {
+    pub collector_port: u16,
+    pub collector_hostname: String,
+}
+
+impl Default for OutputConfig {
     fn default() -> Self {
         Self {
-            grpc_server_port: 8765,
-            grpc_server_addr: IpAddr::V4(Ipv4Addr::new(0, 0, 0, 0)),
+            collector_port: 8765,
+            collector_hostname: "localhost".to_string(),
         }
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct OutputConfig {
+struct MetricsConfig {
+    #[serde(default = "default_metrics_prefix")]
+    name_prefix: String,
     #[serde(default)]
     file: Option<FileExporterConfig>,
     #[serde(default)]
@@ -65,9 +70,10 @@ struct OutputConfig {
     scrape: Option<ScrapeExporterConfig>,
 }
 
-impl Default for OutputConfig {
+impl Default for MetricsConfig {
     fn default() -> Self {
         Self {
+            name_prefix: default_metrics_prefix(),
             file: None,
             stdout: None,
             scrape: Some(ScrapeExporterConfig {
@@ -77,8 +83,8 @@ impl Default for OutputConfig {
     }
 }
 
-impl OutputConfig {
-    pub fn build(&self) -> crate::Result<ValidatedOutputConfig> {
+impl MetricsConfig {
+    pub fn build(&self) -> crate::Result<ValidatedMetricsConfig> {
         let mut exporters = HashSet::default();
         if let Some(config) = &self.file {
             exporters.insert(MetricsExporter::File(config.clone()));
@@ -90,32 +96,9 @@ impl OutputConfig {
             exporters.insert(MetricsExporter::Scrape(config.clone()));
         }
 
-        Ok(ValidatedOutputConfig { exporters })
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct MetricsConfig {
-    #[serde(default = "default_metrics_prefix")]
-    name_prefix: String,
-    #[serde(default = "default_buckets")]
-    buckets: Vec<f64>,
-}
-
-impl Default for MetricsConfig {
-    fn default() -> Self {
-        Self {
-            name_prefix: default_metrics_prefix(),
-            buckets: default_buckets(),
-        }
-    }
-}
-
-impl MetricsConfig {
-    pub fn build(&self) -> crate::Result<ValidatedMetricsConfig> {
         Ok(ValidatedMetricsConfig {
             prefix: self.name_prefix.clone(),
-            buckets: self.buckets.clone(),
+            exporters,
         })
     }
 }
@@ -159,13 +142,7 @@ fn default_shutdown_duration() -> Duration {
 }
 
 fn default_metrics_prefix() -> String {
-    "quicmop".to_string()
-}
-
-fn default_buckets() -> Vec<f64> {
-    vec![
-        0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0,
-    ]
+    "quicmop_kernel_agent".to_string()
 }
 
 /// Parsed and validated process configuration for the quicmop service.
@@ -194,41 +171,22 @@ impl ValidatedProcessConfig {
 
 /// Configuration for quicmop metrics.
 #[derive(Debug, Clone)]
-pub struct ValidatedOutputConfig {
-    /// List of metrics exporters to export metrics with.
-    pub exporters: HashSet<MetricsExporter>,
-}
-
-impl ValidatedOutputConfig {
-    pub fn merge(self, other: Self) -> Self {
-        Self {
-            exporters: self.exporters.into_iter().chain(other.exporters).collect(),
-        }
-    }
-}
-
-/// Configuration for quicmop metrics.
-#[derive(Debug, Clone)]
 pub struct ValidatedMetricsConfig {
-    /// List of buckets to store metrics in.
-    pub buckets: Vec<f64>,
     /// Prefix to apply to all metrics names.
     pub prefix: String,
+    /// List of metrics exporters to export metrics with.
+    pub exporters: HashSet<MetricsExporter>,
 }
 
 impl ValidatedMetricsConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
-            buckets: if other.buckets.is_empty() {
-                self.buckets
-            } else {
-                other.buckets
-            },
             prefix: if other.prefix == default_metrics_prefix() {
                 self.prefix
             } else {
                 other.prefix
             },
+            exporters: self.exporters.into_iter().chain(other.exporters).collect(),
         }
     }
 }
@@ -237,9 +195,9 @@ impl ValidatedMetricsConfig {
 #[derive(Debug, Clone)]
 pub struct ServiceConfig {
     /// Configuration for input.
-    pub input: InputConfig,
+    pub agent: AgentConfig,
     /// Configuration for output.
-    pub output: ValidatedOutputConfig,
+    pub output: OutputConfig,
     /// Configuration for metrics.
     pub metrics: ValidatedMetricsConfig,
     /// Configuration for the process.
@@ -249,8 +207,8 @@ pub struct ServiceConfig {
 impl ServiceConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
-            input: self.input,
-            output: self.output.merge(other.output),
+            agent: self.agent,
+            output: self.output,
             metrics: self.metrics.merge(other.metrics),
             process: self.process.merge(other.process),
         }
@@ -300,14 +258,9 @@ impl TryFrom<CliArgs> for ServiceConfig {
         let current_log_level = base_config.process.log_level.into_u8();
         let new_log_level = Level::from_u8(current_log_level.saturating_add(log_level_increase));
 
-        let mut input_config = base_config.input.clone();
-        if let Some(port) = value.grpc_server_port {
-            input_config.grpc_server_port = port;
-        }
-        if let Some(addr) = value.grpc_server_addr
-            && let Ok(addr) = addr.parse()
-        {
-            input_config.grpc_server_addr = addr;
+        let mut agent_config = base_config.agent.clone();
+        if let Some(hostname) = value.hostname {
+            agent_config.hostname = Some(hostname);
         }
 
         let process_config = ValidatedProcessConfig {
@@ -316,17 +269,21 @@ impl TryFrom<CliArgs> for ServiceConfig {
             shutdown_timeout: default_shutdown_duration(),
         };
 
-        let output_config = ValidatedOutputConfig {
-            exporters: HashSet::new(),
-        };
+        let mut output_config = base_config.output.clone();
+        if let Some(hostname) = value.collector_hostname {
+            output_config.collector_hostname = hostname;
+        }
+        if let Some(port) = value.collector_port {
+            output_config.collector_port = port;
+        }
 
         let metrics_config = ValidatedMetricsConfig {
             prefix: value.metrics_name_prefix,
-            buckets: Vec::default(),
+            exporters: HashSet::new(),
         };
 
         let cli_config = ServiceConfig {
-            input: input_config,
+            agent: agent_config,
             output: output_config,
             metrics: metrics_config,
             process: process_config,

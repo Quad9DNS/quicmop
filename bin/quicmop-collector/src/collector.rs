@@ -12,6 +12,7 @@ use metrics::{Key, Label, Unit};
 use metrics_exporter_prometheus::{LabelSet, formatting};
 use metrics_util::storage::Histogram;
 use moka::future::Cache;
+use quicmop_metrics_exporters::MetricsExtraProvider;
 use quicmop_proto::proto::{
     AgentMetricsRequest, CollectorResponse,
     quicmop_socket_metrics_service_server::QuicmopSocketMetricsService,
@@ -88,8 +89,10 @@ impl Collector {
             unique_addresses_name: format!("{name_prefix}_unique_addresses"),
         }
     }
+}
 
-    pub fn render_to_write(&self, output: &mut impl io::Write) {
+impl MetricsExtraProvider for Collector {
+    fn render_to_write(&self, output: &mut impl io::Write) {
         let mut histograms = (**self.metrics.load()).clone();
 
         let mut unique_addresses: HashMap<IpNet, HashSet<IpAddr>> = HashMap::new();

@@ -8,7 +8,7 @@ use tokio::{
 };
 use tokio_stream::wrappers::IntervalStream;
 
-use crate::collector::Collector;
+use crate::MetricsExtraProvider;
 
 use super::MetricsExporterTaskBuilder;
 
@@ -25,26 +25,28 @@ impl<W: AsyncWrite> BufWriterMetricsExporter<W> {
         }
     }
 
-    pub async fn export(
+    pub async fn export<T: MetricsExtraProvider>(
         self,
         handle: &PrometheusHandle,
-        collector: Arc<Collector>,
+        extra_provider: Arc<T>,
     ) -> crate::Result<()> {
         let mut writer = Box::pin(self.writer);
         writer.write_all(handle.render().as_bytes()).await?;
         let mut collector_data = Vec::default();
-        collector.render_to_write(&mut collector_data);
+        extra_provider.render_to_write(&mut collector_data);
         writer.write_all(&collector_data).await?;
         writer.flush().await?;
         Ok(())
     }
 }
 
-impl<W: AsyncWrite> MetricsExporterTaskBuilder for BufWriterMetricsExporter<W> {
+impl<W: AsyncWrite, T: MetricsExtraProvider> MetricsExporterTaskBuilder<T>
+    for BufWriterMetricsExporter<W>
+{
     async fn start_exporting(
         self,
         handle: PrometheusHandle,
-        collector: Arc<Collector>,
+        extra_provider: Arc<T>,
     ) -> crate::Result<()> {
         let mut intervals =
             IntervalStream::new(interval(Duration::from_secs(self.export_interval_secs)));
@@ -56,7 +58,7 @@ impl<W: AsyncWrite> MetricsExporterTaskBuilder for BufWriterMetricsExporter<W> {
                 .await
                 .expect("Metrics write failed");
             let mut collector_data = Vec::default();
-            collector.render_to_write(&mut collector_data);
+            extra_provider.render_to_write(&mut collector_data);
             writer.write_all(&collector_data).await?;
             writer.flush().await.expect("Flush failed");
         }
