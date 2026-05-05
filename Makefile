@@ -6,7 +6,7 @@ PREFIX?=/usr/local
 BINDIR?=$(PREFIX)/bin
 MANDIR?=$(PREFIX)/share/man
 
-VERSION?=$(shell cat bin/quicmop-collector/Cargo.toml | grep version | cut -f 3 -d " " | cut -f2 -d '"' || echo unknown)
+VERSION?=$(shell cat Cargo.toml | grep version | cut -f 3 -d " " | cut -f2 -d '"' | head -n 1 || echo unknown)
 
 # Override the container tool. Tries docker first and then tries podman.
 export CONTAINER_TOOL ?= auto
@@ -23,8 +23,10 @@ endif
 DOCS := $(addprefix target/man/,\
 	quicmop-collector.1)
 
-all: doc target/default/release/quicmop-collector
+all: doc target/default/release/quicmop-collector target/default/release/quicmop-kernel-agent target/default/release/quicmop-netobserv-ebpf-agent-adapter
 	cp target/default/release/quicmop-collector target/quicmop-collector
+	cp target/default/release/quicmop-kernel-agent target/quicmop-kernel-agent
+	cp target/default/release/quicmop-netobserv-ebpf-agent-adapter target/quicmop-netobserv-ebpf-agent-adapter
 
 container-debian: deb
 	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" -f distribution/container/Containerfile.debian .
@@ -34,17 +36,43 @@ container-alpine:
 	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" -f distribution/container/Containerfile.alpine .
 
 target/%/release/quicmop-collector:
-	CARGO_TARGET_DIR="target/$*" cargo build --release --no-default-features --features $*
+	CARGO_TARGET_DIR="target/$*" cargo build -p quicmop-collector --release
 
-deb: target/default/debian/quicmop-collector$(VERSION)-1_amd64.deb doc
+target/%/release/quicmop-kernel-agent:
+	CARGO_TARGET_DIR="target/$*" cargo build -p quicmop-kernel-agent --release
 
-rpm: target/default/generate-rpm/quicmop-collector_$(VERSION)-1.x86_64.rpm doc
+target/%/release/quicmop-netobserv-ebpf-agent-adapter:
+	CARGO_TARGET_DIR="target/$*" cargo build -p quicmop-netobserv-ebpf-agent-adapter --release
 
-target/%/debian/quicmop-collector_$(VERSION)-1_amd64.deb: target/%/release/quicmop-collector $(DOCS)
-	CARGO_TARGET_DIR="target/$*" cargo deb --variant $*
+collector-deb: doc
+	cross build --target x86_64-unknown-linux-gnu -p quicmop-collector --release
+	cp "target/x86_64-unknown-linux-gnu/release/quicmop-collector" "target/release/quicmop-collector"
+	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-collector
+
+collector-rpm: target/default/generate-rpm/quicmop-collector_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-collector_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-collector $(DOCS)
-	cargo generate-rpm -p bin/quicmop-collector --target-dir "target/$*" --variant $*
+	cargo generate-rpm -p quicmop-collector --target-dir "target/$*" --variant $*
+
+kernel-agent-deb: doc
+	cross build --target x86_64-unknown-linux-gnu -p quicmop-kernel-agent --release
+	cp "target/x86_64-unknown-linux-gnu/release/quicmop-kernel-agent" "target/release/quicmop-kernel-agent"
+	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-kernel-agent
+
+kernel-agent-rpm: target/default/generate-rpm/quicmop-kernel-agent_$(VERSION)-1.x86_64.rpm doc
+
+target/%/generate-rpm/quicmop-kernel-agent_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-kernel-agent $(DOCS)
+	cargo generate-rpm -p quicmop-kernel-agent --target-dir "target/$*" --variant $*
+
+netobserv-ebpf-agent-adapter-deb: doc
+	cross build --target x86_64-unknown-linux-gnu -p quicmop-netobserv-ebpf-agent-adapter --release
+	cp "target/x86_64-unknown-linux-gnu/release/quicmop-netobserv-ebpf-agent-adapter" "target/release/quicmop-netobserv-ebpf-agent-adapter"
+	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-netobserv-ebpf-agent-adapter
+
+netobserv-ebpf-agent-adapter-rpm: target/default/generate-rpm/quicmop-netobserv-ebpf-agent-adapter_$(VERSION)-1.x86_64.rpm doc
+
+target/%/generate-rpm/quicmop-netobserv-ebpf-agent-adapter_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-netobserv-ebpf-agent-adapter $(DOCS)
+	cargo generate-rpm -p quicmop-netobserv-ebpf-agent-adapter --target-dir "target/$*" --variant $*
 
 .PHONY: dev
 dev:

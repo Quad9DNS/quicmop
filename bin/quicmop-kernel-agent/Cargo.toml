@@ -9,6 +9,41 @@ readme.workspace = true
 homepage.workspace = true
 version.workspace = true
 
+[package.metadata.deb]
+name = "quicmop-kernel-agent"
+maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
+assets = [
+    { source = "target/release/quicmop-kernel-agent", dest = "usr/bin/", mode = "755" },
+    { source = "../../distribution/kernel-agent-config.yaml", dest = "etc/quicmop/quicmop-kernel-agent.yaml", mode = "644" },
+    { source = "../../README.md", dest = "usr/share/doc/quicmop-kernel-agent/README", mode = "644" },
+    { source = "../../LICENSE", dest = "usr/share/licenses/quicmop-kernel-agent/LICENSE", mode = "644" },
+]
+
+[package.metadata.deb.variants.default]
+depends = []
+default-features = true
+
+[package.metadata.deb.systemd-units]
+unit-scripts = "../../distribution/systemd/"
+unit-name = "quicmop-kernel-agent"
+enable = false
+start = false
+
+[package.metadata.generate-rpm]
+name = "quicmop-kernel-agent"
+maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
+assets = [
+    { source = "target/release/quicmop-kernel-agent", dest = "/usr/bin/quicmop-kernel-agent", mode = "755" },
+    { source = "../../distribution/kernel-agent-config.yaml", dest = "etc/quicmop/quicmop-kernel-agent.yaml", mode = "644" },
+    { source = "../../README.md", dest = "/usr/share/doc/quicmop-kernel-agent/README", mode = "644", doc = true },
+    { source = "../../LICENSE", dest = "/usr/share/licenses/quicmop-kernel-agent/LICENSE", mode = "644" },
+    { source = "../../distribution/systemd/quicmop-kernel-agent.service", dest = "/lib/systemd/system/quicmop-kernel-agent.service", mode = "644" },
+]
+
+[package.metadata.generate-rpm.variants.default]
+requires = {}
+default-features = true
+
 [dependencies]
 async-stream.workspace = true
 clap = { workspace = true, features = ["cargo", "derive", "string"] }

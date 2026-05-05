@@ -7,7 +7,7 @@
 # output:
   ## Export metrics to file
   # file:
-    # file_path: "/var/lib/node-exporter/stringsimile.prom"
+    # file_path: "/var/lib/node-exporter/quicmop.prom"
     # export_interval_secs: 15
     # mode: 0o644
 

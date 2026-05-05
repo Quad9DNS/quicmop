@@ -168,7 +168,7 @@ fn default_shutdown_duration() -> Duration {
 }
 
 fn default_metrics_prefix() -> String {
-    "quicmop_kernel_agent".to_string()
+    "quicmop_netobserv_ebpf_agent_adapter".to_string()
 }
 
 fn default_netobserv_grcp_server_port() -> u16 {

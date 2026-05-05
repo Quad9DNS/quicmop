@@ -14,6 +14,7 @@ name = "quicmop-collector"
 maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
 assets = [
     { source = "target/release/quicmop-collector", dest = "usr/bin/", mode = "755" },
+    { source = "../../distribution/collector-config.yaml", dest = "etc/quicmop/quicmop-collector.yaml", mode = "644" },
     { source = "../../README.md", dest = "usr/share/doc/quicmop-collector/README", mode = "644" },
     { source = "../../LICENSE", dest = "usr/share/licenses/quicmop-collector/LICENSE", mode = "644" },
 ]
@@ -24,6 +25,7 @@ default-features = true
 
 [package.metadata.deb.systemd-units]
 unit-scripts = "../../distribution/systemd/"
+unit-name = "quicmop-collector"
 enable = false
 start = false
 
@@ -32,6 +34,7 @@ name = "quicmop-collector"
 maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
 assets = [
     { source = "target/release/quicmop-collector", dest = "/usr/bin/quicmop-collector", mode = "755" },
+    { source = "../../distribution/collector-config.yaml", dest = "etc/quicmop/quicmop-collector.yaml", mode = "644" },
     { source = "../../README.md", dest = "/usr/share/doc/quicmop-collector/README", mode = "644", doc = true },
     { source = "../../LICENSE", dest = "/usr/share/licenses/quicmop-collector/LICENSE", mode = "644" },
     { source = "../../distribution/systemd/quicmop-collector.service", dest = "/lib/systemd/system/quicmop-collector.service", mode = "644" },

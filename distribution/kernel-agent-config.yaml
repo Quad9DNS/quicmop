@@ -1,0 +1,39 @@
+## General agent configuration can be set up here
+# agent:
+  ## Name to send in events sent to the collector
+  # hostname: null
+
+## Output for events
+# output:
+  # collector_port: 8765
+  # collector_hostname: "localhost"
+
+## metrics can be configured here
+## All metrics are exported in prometheus format
+# metrics:
+  ## Prefix to add to all metrics names
+  # name_prefix: quicmop_kernel_agent
+
+  ## Export metrics to file
+  # file:
+    # file_path: "/var/lib/node-exporter/quicmop_kernel_agent.prom"
+    # export_interval_secs: 15
+    # mode: 0o644
+
+  ## Export metrics to stdout
+  # stdout:
+    # export_interval_secs: 15
+
+  ## Export metrics via scrape endpoint
+  # scrape:
+    # addr: 0.0.0.0:9000
+
+## agent process configuration
+# process:
+  ## Log level can be configured
+  ## Valid levels are: "error", "warn", "info", "debug", "trace"
+  # log_level: "INFO"
+
+  ## Graceful shutdown timeout in milliseconds
+  ## When SIGINT is received, quicmop kernel agent will allow time for processing to complete gracefully, before resorting to forceful shutdown
+  # shutdown_timeout_ms: 60000
