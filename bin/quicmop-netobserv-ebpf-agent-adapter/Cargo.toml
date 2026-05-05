@@ -1,0 +1,33 @@
+[package]
+name = "quicmop-netobserv-ebpf-agent-adapter"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+
+[dependencies]
+async-stream.workspace = true
+clap = { workspace = true, features = ["cargo", "derive", "string"] }
+exitcode.workspace = true
+futures.workspace = true
+netobserv-flow-proto.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-util.workspace = true
+metrics.workspace = true
+quicmop-metrics-exporters.workspace = true
+quicmop-metrics.workspace = true
+quicmop-proto.workspace = true
+quicmop-signals.workspace = true
+rustix = { workspace = true, features = ["system"] }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
+snafu.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
+tonic.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true
