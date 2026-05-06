@@ -57,7 +57,7 @@ ipnet.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-util.workspace = true
 metrics.workspace = true
-moka.workspace = true
+moka = { workspace = true, features = ["future"] }
 netobserv-flow-proto.workspace = true
 quicmop-metrics-exporters.workspace = true
 quicmop-metrics.workspace = true

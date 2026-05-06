@@ -30,13 +30,15 @@ ipnet = { version = "2.12.0" }
 metrics = { version = "0.24.2" }
 metrics-exporter-prometheus = { version = "0.18.3" }
 metrics-util = { version = "0.19.1" }
-moka = { version = "0.12.15", features = ["future"] }
+moka = { version = "0.12.15" }
 netlink-sys = "0.8"
 netlink-packet-core = "0.8.1"
 netlink-packet-route = { version = "0.30.0" }
-netlink-packet-sock-diag = { path = "./vendor/netlink-packet-sock-diag", features = ["rich_nlas"] }
+netlink-packet-sock-diag = { path = "./vendor/netlink-packet-sock-diag" }
+notify-debouncer-mini = { version = "0.7.0" }
 prost = { version = "0.14.3" }
 prost-types = { version = "0.14.3" }
+qlog = { version = "0.17.0" }
 rustix = { version = "1.1.4" }
 serde = { version = "1.0.219" }
 serde_json = { version = "1.0.140" }

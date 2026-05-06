@@ -74,6 +74,16 @@ netobserv-ebpf-agent-adapter-rpm: target/default/generate-rpm/quicmop-netobserv-
 target/%/generate-rpm/quicmop-netobserv-ebpf-agent-adapter_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-netobserv-ebpf-agent-adapter $(DOCS)
 	cargo generate-rpm -p quicmop-netobserv-ebpf-agent-adapter --target-dir "target/$*" --variant $*
 
+qlog-agent-deb: doc
+	cross build --target x86_64-unknown-linux-gnu -p quicmop-qlog-agent --release
+	cp "target/x86_64-unknown-linux-gnu/release/quicmop-qlog-agent" "target/release/quicmop-qlog-agent"
+	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-qlog-agent
+
+qlog-agent-rpm: target/default/generate-rpm/quicmop-qlog-agent_$(VERSION)-1.x86_64.rpm doc
+
+target/%/generate-rpm/quicmop-qlog-agent_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-qlog-agent $(DOCS)
+	cargo generate-rpm -p quicmop-qlog-agent --target-dir "target/$*" --variant $*
+
 .PHONY: dev
 dev:
 	cargo build
