@@ -101,6 +101,8 @@ struct MetricsConfig {
     name_prefix: String,
     #[serde(default = "default_buckets")]
     buckets: Vec<f64>,
+    #[serde(default = "default_address_timeout_ms")]
+    address_timeout_ms: usize,
 }
 
 impl Default for MetricsConfig {
@@ -108,6 +110,7 @@ impl Default for MetricsConfig {
         Self {
             name_prefix: default_metrics_prefix(),
             buckets: default_buckets(),
+            address_timeout_ms: default_address_timeout_ms(),
         }
     }
 }
@@ -117,6 +120,7 @@ impl MetricsConfig {
         Ok(ValidatedMetricsConfig {
             prefix: self.name_prefix.clone(),
             buckets: self.buckets.clone(),
+            address_timeout: Duration::from_millis(self.address_timeout_ms as u64),
         })
     }
 }
@@ -169,6 +173,14 @@ fn default_buckets() -> Vec<f64> {
     ]
 }
 
+fn default_address_timeout_ms() -> usize {
+    60 * 1000
+}
+
+fn default_address_timeout() -> Duration {
+    Duration::from_secs(60)
+}
+
 /// Parsed and validated process configuration for the quicmop service.
 #[derive(Debug, Clone)]
 pub struct ValidatedProcessConfig {
@@ -215,6 +227,8 @@ pub struct ValidatedMetricsConfig {
     pub buckets: Vec<f64>,
     /// Prefix to apply to all metrics names.
     pub prefix: String,
+    /// Timeout to apply to inactive addresses
+    pub address_timeout: Duration,
 }
 
 impl ValidatedMetricsConfig {
@@ -229,6 +243,11 @@ impl ValidatedMetricsConfig {
                 self.prefix
             } else {
                 other.prefix
+            },
+            address_timeout: if other.address_timeout == default_address_timeout() {
+                self.address_timeout
+            } else {
+                other.address_timeout
             },
         }
     }
@@ -332,6 +351,7 @@ impl TryFrom<CliArgs> for ServiceConfig {
         let metrics_config = ValidatedMetricsConfig {
             prefix: value.metrics_name_prefix,
             buckets: Vec::default(),
+            address_timeout: default_address_timeout(),
         };
 
         let cli_config = ServiceConfig {

@@ -73,6 +73,7 @@ impl Collector {
         v4_dst_netmask: u8,
         v6_dst_netmask: u8,
         buckets: Vec<f64>,
+        timeout: Duration,
         name_prefix: String,
     ) -> Self {
         Self {
@@ -87,7 +88,7 @@ impl Collector {
                 .time_to_live(Duration::from_secs(60))
                 .build(),
             metrics: Arc::new(ArcSwap::new(Arc::new(HashMap::default()))),
-            timeout: Duration::from_secs(60),
+            timeout,
             bucket_name: format!("{name_prefix}_bucket"),
             unique_addresses_name: format!("{name_prefix}_unique_addresses"),
         }
@@ -262,6 +263,7 @@ impl MetricsExtraProvider for Collector {
                                 self.v6_src_netmask.to_string()
                             },
                         ),
+                        Label::new("timer", self.timeout.as_secs_f64().to_string()),
                     ],
                 ),
                 &Default::default(),

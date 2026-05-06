@@ -152,6 +152,7 @@ impl Service<InitState> {
             24,
             56,
             config.metrics.buckets.clone(),
+            config.metrics.address_timeout,
             config.metrics.prefix.clone(),
         ));
 

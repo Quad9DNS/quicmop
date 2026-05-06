@@ -28,6 +28,9 @@
   ## Buckets to store rtt values in
   # buckets: [0.5, 1.0, 2.0, 4.0, 8.0, 16.0, 32.0, 64.0, 128.0, 256.0, 512.0, 1024.0, 2048.0, 4096.0]
 
+  ## Duration to store addresses for
+  # address_timeout_ms: 60000
+
 ## collector process configuration
 # process:
   ## Log level can be configured
