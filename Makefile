@@ -28,12 +28,41 @@ all: doc target/default/release/quicmop-collector target/default/release/quicmop
 	cp target/default/release/quicmop-kernel-agent target/quicmop-kernel-agent
 	cp target/default/release/quicmop-netobserv-ebpf-agent-adapter target/quicmop-netobserv-ebpf-agent-adapter
 
-container-debian: deb
-	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" -f distribution/container/Containerfile.debian .
+.PHONY: container-collector-debian
+container-collector-debian: collector-deb
+	$(CONTAINER_TOOL) build --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-gnu" -f distribution/container/Containerfile-collector.debian .
 
-container-alpine:
-	CARGO_TARGET_DIR="target/default" CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" cargo build --release
-	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" -f distribution/container/Containerfile.alpine .
+.PHONY: container-collector-alpine
+container-collector-alpine:
+	CARGO_TARGET_DIR="target/default" CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" cargo build --release -p quicmop-collector
+	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" -f distribution/container/Containerfile-collector.alpine .
+
+.PHONY: container-kernel-agent-debian
+container-kernel-agent-debian: kernel-agent-deb
+	$(CONTAINER_TOOL) build --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-gnu" -f distribution/container/Containerfile-kernel-agent.debian .
+
+.PHONY: container-kernel-agent-alpine
+container-kernel-agent-alpine:
+	CARGO_TARGET_DIR="target/default" CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" cargo build --release -p quicmop-kernel-agent
+	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" -f distribution/container/Containerfile-kernel-agent.alpine .
+
+.PHONY: container-qlog-agent-debian
+container-qlog-agent-debian: qlog-agent-deb
+	$(CONTAINER_TOOL) build --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-gnu" -f distribution/container/Containerfile-qlog-agent.debian .
+
+.PHONY: container-qlog-agent-alpine
+container-qlog-agent-alpine:
+	CARGO_TARGET_DIR="target/default" CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" cargo build --release -p quicmop-qlog-agent
+	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" -f distribution/container/Containerfile-qlog-agent.alpine .
+
+.PHONY: container-netobserv-ebpf-agent-adapter-debian
+container-netobserv-ebpf-agent-adapter-debian: netobserv-ebpf-agent-adapter-deb
+	$(CONTAINER_TOOL) build --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-gnu" -f distribution/container/Containerfile-netobserv-ebpf-agent-adapter.debian .
+
+.PHONY: container-netobserv-ebpf-agent-adapter-alpine
+container-netobserv-ebpf-agent-adapter-alpine:
+	CARGO_TARGET_DIR="target/default" CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" cargo build --release -p quicmop-netobserv-ebpf-agent-adapter
+	$(CONTAINER_TOOL) build --build-arg CARGO_TARGET_DIR="target/default" --build-arg CARGO_BUILD_TARGET="x86_64-unknown-linux-musl" -f distribution/container/Containerfile-netobserv-ebpf-agent-adapter.alpine .
 
 target/%/release/quicmop-collector:
 	CARGO_TARGET_DIR="target/$*" cargo build -p quicmop-collector --release
@@ -44,41 +73,49 @@ target/%/release/quicmop-kernel-agent:
 target/%/release/quicmop-netobserv-ebpf-agent-adapter:
 	CARGO_TARGET_DIR="target/$*" cargo build -p quicmop-netobserv-ebpf-agent-adapter --release
 
+.PHONY: collector-deb
 collector-deb: doc
 	cross build --target x86_64-unknown-linux-gnu -p quicmop-collector --release
 	cp "target/x86_64-unknown-linux-gnu/release/quicmop-collector" "target/release/quicmop-collector"
 	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-collector
 
+.PHONY: collector-rpm
 collector-rpm: target/default/generate-rpm/quicmop-collector_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-collector_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-collector $(DOCS)
 	cargo generate-rpm -p quicmop-collector --target-dir "target/$*" --variant $*
 
+.PHONY: kernel-agent-deb
 kernel-agent-deb: doc
 	cross build --target x86_64-unknown-linux-gnu -p quicmop-kernel-agent --release
 	cp "target/x86_64-unknown-linux-gnu/release/quicmop-kernel-agent" "target/release/quicmop-kernel-agent"
 	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-kernel-agent
 
+.PHONY: kernel-agent-rpm
 kernel-agent-rpm: target/default/generate-rpm/quicmop-kernel-agent_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-kernel-agent_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-kernel-agent $(DOCS)
 	cargo generate-rpm -p quicmop-kernel-agent --target-dir "target/$*" --variant $*
 
+.PHONY: netobserv-ebpf-agent-adapter-deb
 netobserv-ebpf-agent-adapter-deb: doc
 	cross build --target x86_64-unknown-linux-gnu -p quicmop-netobserv-ebpf-agent-adapter --release
 	cp "target/x86_64-unknown-linux-gnu/release/quicmop-netobserv-ebpf-agent-adapter" "target/release/quicmop-netobserv-ebpf-agent-adapter"
 	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-netobserv-ebpf-agent-adapter
 
+.PHONY: netobserv-ebpf-agent-adapter-rpm
 netobserv-ebpf-agent-adapter-rpm: target/default/generate-rpm/quicmop-netobserv-ebpf-agent-adapter_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-netobserv-ebpf-agent-adapter_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-netobserv-ebpf-agent-adapter $(DOCS)
 	cargo generate-rpm -p quicmop-netobserv-ebpf-agent-adapter --target-dir "target/$*" --variant $*
 
+.PHONY: qlog-agent-deb
 qlog-agent-deb: doc
 	cross build --target x86_64-unknown-linux-gnu -p quicmop-qlog-agent --release
 	cp "target/x86_64-unknown-linux-gnu/release/quicmop-qlog-agent" "target/release/quicmop-qlog-agent"
 	cargo deb --no-build --variant default --target x86_64-unknown-linux-gnu -p quicmop-qlog-agent
 
+.PHONY: qlog-agent-rpm
 qlog-agent-rpm: target/default/generate-rpm/quicmop-qlog-agent_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-qlog-agent_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-qlog-agent $(DOCS)
@@ -150,4 +187,4 @@ uninstall:
 	$(RMDIR_IF_EMPTY) $(DESTDIR)$(MANDIR)/man7
 	$(RMDIR_IF_EMPTY) $(DESTDIR)$(MANDIR)
 
-.PHONY: all deb rpm container-debian container-alpine doc clean install uninstall
+.PHONY: all doc clean install uninstall

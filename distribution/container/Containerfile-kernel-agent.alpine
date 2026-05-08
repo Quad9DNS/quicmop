@@ -1,0 +1,11 @@
+FROM alpine:3.21
+
+ARG CARGO_TARGET_DIR="target"
+ARG CARGO_BUILD_TARGET="."
+
+COPY ./$CARGO_TARGET_DIR/$CARGO_BUILD_TARGET/release/quicmop-kernel-agent /usr/local/bin/quicmop-kernel-agent
+
+# Smoke test
+RUN ["quicmop-kernel-agent", "--version"]
+
+ENTRYPOINT ["/usr/local/bin/quicmop-kernel-agent"]

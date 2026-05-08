@@ -1,0 +1,17 @@
+FROM debian:bookworm-slim AS builder
+
+ARG CARGO_TARGET_DIR="target"
+ARG CARGO_BUILD_TARGET="."
+
+COPY ./$CARGO_TARGET_DIR/$CARGO_BUILD_TARGET/debian/quicmop-netobserv-ebpf-agent-adapter_*_*.deb .
+
+RUN dpkg -i ./quicmop-netobserv-ebpf-agent-adapter_*_*.deb
+
+FROM debian:bookworm-slim
+
+COPY --from=builder /usr/bin/quicmop-netobserv-ebpf-agent-adapter /usr/bin/quicmop-netobserv-ebpf-agent-adapter
+
+# Smoke test
+RUN ["quicmop-netobserv-ebpf-agent-adapter", "--version"]
+
+ENTRYPOINT ["/usr/bin/quicmop-netobserv-ebpf-agent-adapter"]
