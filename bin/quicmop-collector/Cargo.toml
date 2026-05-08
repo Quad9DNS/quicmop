@@ -48,7 +48,6 @@ default-features = true
 default = []
 
 [dependencies]
-arc-swap.workspace = true
 async-stream.workspace = true
 clap = { workspace = true, features = ["cargo", "derive", "string"] }
 exitcode.workspace = true

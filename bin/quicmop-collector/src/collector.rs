@@ -2,11 +2,9 @@ use std::{
     collections::{HashMap, HashSet},
     io,
     net::IpAddr,
-    sync::Arc,
-    time::{Duration, Instant},
+    time::Duration,
 };
 
-use arc_swap::ArcSwap;
 use ipnet::IpNet;
 use metrics::{Key, Label, Unit};
 use metrics_exporter_prometheus::{LabelSet, formatting};
@@ -60,7 +58,6 @@ pub struct Collector {
     v6_dst_netmask: u8,
     buckets: Vec<f64>,
     addresses: Cache<AddressKey, AddressEntry>,
-    metrics: Arc<ArcSwap<HashMap<NetworkKey, (Histogram, Instant)>>>,
     timeout: Duration,
     bucket_name: String,
     unique_addresses_name: String,
@@ -85,9 +82,8 @@ impl Collector {
             addresses: Cache::builder()
                 .weigher(|k: &AddressKey, _| -> u32 { k.size() + size_of::<AddressEntry>() as u32 })
                 .max_capacity(32 * 1024 * 1024) // 32 MiB
-                .time_to_live(Duration::from_secs(60))
+                .time_to_live(timeout)
                 .build(),
-            metrics: Arc::new(ArcSwap::new(Arc::new(HashMap::default()))),
             timeout,
             bucket_name: format!("{name_prefix}_bucket"),
             unique_addresses_name: format!("{name_prefix}_unique_addresses"),
@@ -97,7 +93,7 @@ impl Collector {
 
 impl MetricsExtraProvider for Collector {
     fn render_to_write(&self, output: &mut impl io::Write) {
-        let mut histograms = (**self.metrics.load()).clone();
+        let mut histograms = HashMap::new();
 
         let mut unique_addresses: HashMap<IpNet, HashSet<IpAddr>> = HashMap::new();
 
@@ -130,12 +126,10 @@ impl MetricsExtraProvider for Collector {
             };
             let x = histograms
                 .entry(net_key.clone())
-                .or_insert((Histogram::new(&self.buckets).unwrap(), Instant::now()));
-            x.0.record(entry.min_rtt_us as f64 / 1000.0);
+                .or_insert(Histogram::new(&self.buckets).unwrap());
+            x.record(entry.min_rtt_us as f64 / 1000.0);
             unique_addresses.entry(src_net).or_default().insert(key.src);
         }
-
-        histograms.retain(|_, (_, time)| *time + self.timeout >= Instant::now());
 
         let mut intermediate = String::new();
         if !histograms.is_empty() {
@@ -156,7 +150,7 @@ impl MetricsExtraProvider for Collector {
             output.write_all(intermediate.as_bytes()).unwrap();
             intermediate.clear();
         }
-        for (key, (histogram, _)) in &histograms {
+        for (key, histogram) in &histograms {
             let labels = LabelSet::from_key_and_global(
                 &Key::from_parts(
                     self.bucket_name.clone(),
@@ -280,8 +274,6 @@ impl MetricsExtraProvider for Collector {
             output.write_all(intermediate.as_bytes()).unwrap();
             intermediate.clear();
         }
-
-        self.metrics.swap(histograms.into());
     }
 }
 

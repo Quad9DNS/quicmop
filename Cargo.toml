@@ -19,7 +19,6 @@ quicmop-metrics = { path = "./crates/quicmop-metrics" }
 quicmop-proto = { path = "./crates/quicmop-proto" }
 quicmop-signals = { path = "./crates/quicmop-signals" }
 
-arc-swap = { version = "1.9.1" }
 async-stream = { version = "0.3.6" }
 axum = { version = "0.8.9" }
 clap = { version = "4.5.36" }

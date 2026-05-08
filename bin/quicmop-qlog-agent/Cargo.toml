@@ -49,7 +49,6 @@ async-stream.workspace = true
 clap = { workspace = true, features = ["cargo", "derive", "env", "string"] }
 exitcode.workspace = true
 futures.workspace = true
-netobserv-flow-proto.workspace = true
 metrics-exporter-prometheus.workspace = true
 metrics-util.workspace = true
 metrics.workspace = true
