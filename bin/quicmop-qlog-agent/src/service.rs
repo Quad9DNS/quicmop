@@ -2,7 +2,7 @@
 use std::io;
 use std::process::ExitStatus;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use exitcode::ExitCode;
@@ -18,6 +18,7 @@ use tokio::runtime::Runtime;
 use tokio::sync::broadcast::{Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time::interval;
+use tonic::transport::Endpoint;
 use tracing::{Level, error, info, warn};
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -148,29 +149,28 @@ impl Service<InitState> {
         let port = config.output.collector_port;
         let url = format!("grpc://{hostname}:{port}");
 
-        let requests_stream = QlogLoader::new(
-            config.agent.hostname.clone().clone().unwrap_or_else(|| {
-                rustix::system::uname()
-                    .nodename()
-                    .to_string_lossy()
-                    .to_string()
-            }),
-            config.agent.qlog_dir.clone(),
-        )
-        .unwrap()
-        .start_loading()
-        .unwrap();
-
+        let agent_hostname = config.agent.hostname.clone().clone().unwrap_or_else(|| {
+            rustix::system::uname()
+                .nodename()
+                .to_string_lossy()
+                .to_string()
+        });
+        let qlog_dir = config.agent.qlog_dir.clone();
         let grpc_client_handle = handle.spawn(async move {
-            let mut client = QuicmopSocketMetricsServiceClient::connect(url)
-                .await
-                .unwrap();
+            let endpoint = Endpoint::new(url).unwrap().connect_lazy();
+            let mut client = QuicmopSocketMetricsServiceClient::new(endpoint);
 
-            client
-                .stream_metrics(requests_stream)
-                .boxed()
-                .await
-                .unwrap();
+            loop {
+                let requests_stream = QlogLoader::new(agent_hostname.clone(), qlog_dir.clone())
+                    .unwrap()
+                    .start_loading()
+                    .unwrap();
+                match client.stream_metrics(requests_stream).boxed().await {
+                    Ok(_) => break,
+                    Err(err) => error!("Failed sending data to the collector: {:?}", err),
+                }
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
             Ok(())
         });
 

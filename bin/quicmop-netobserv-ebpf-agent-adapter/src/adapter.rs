@@ -4,7 +4,7 @@ use netobserv_flow_proto::proto::{
     CollectorReply, Direction, Records, collector_server::Collector,
 };
 use quicmop_proto::proto::{AgentMetricsRequest, Metrics, SocketMetricsGroup};
-use tokio::sync::mpsc::Sender;
+use tokio::sync::broadcast::Sender;
 
 const IPPROTO_TCP: u32 = 6;
 
@@ -62,7 +62,6 @@ impl Collector for NetobservAdapter {
                             }),
                         }],
                     })
-                    .await
                     .unwrap();
             }
         }

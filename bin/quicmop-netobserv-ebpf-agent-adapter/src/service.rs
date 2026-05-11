@@ -2,11 +2,11 @@
 use std::io;
 use std::process::ExitStatus;
 use std::sync::Arc;
-use std::time::{Instant, SystemTime, UNIX_EPOCH};
+use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use clap::Parser;
 use exitcode::ExitCode;
-use futures::FutureExt;
+use futures::{FutureExt, StreamExt};
 use metrics::{Unit, describe_gauge, gauge};
 use metrics_exporter_prometheus::PrometheusBuilder;
 use metrics_util::layers::{PrefixLayer, Stack};
@@ -16,12 +16,11 @@ use quicmop_metrics_exporters::NoopMetricsExtraProvider;
 use quicmop_proto::proto::quicmop_socket_metrics_service_client::QuicmopSocketMetricsServiceClient;
 use quicmop_signals::{ServiceOsSignals, ServiceSignal};
 use tokio::runtime::Runtime;
-use tokio::sync::broadcast::{Receiver, Sender};
-use tokio::sync::mpsc;
+use tokio::sync::broadcast::{self, Receiver, Sender};
 use tokio::task::JoinHandle;
 use tokio::time::interval;
-use tokio_stream::wrappers::ReceiverStream;
-use tonic::transport::Server;
+use tokio_stream::wrappers::BroadcastStream;
+use tonic::transport::{Endpoint, Server};
 use tracing::{Level, error, info, warn};
 use tracing_subscriber::fmt::format::FmtSpan;
 
@@ -152,10 +151,10 @@ impl Service<InitState> {
         let port = config.output.collector_port;
         let url = format!("grpc://{hostname}:{port}");
 
-        let (metrics_tx, metrics_rx) = mpsc::channel(4096);
+        let (metrics_tx, _) = broadcast::channel(4096);
 
         let adapter = Arc::new(NetobservAdapter::new(
-            metrics_tx,
+            metrics_tx.clone(),
             config.agent.hostname.clone().clone().unwrap_or_else(|| {
                 rustix::system::uname()
                     .nodename()
@@ -173,15 +172,18 @@ impl Service<InitState> {
         );
 
         let grpc_client_handle = handle.spawn(async move {
-            let mut client = QuicmopSocketMetricsServiceClient::connect(url)
-                .await
-                .unwrap();
+            let endpoint = Endpoint::new(url).unwrap().connect_lazy();
+            let mut client = QuicmopSocketMetricsServiceClient::new(endpoint);
 
-            client
-                .stream_metrics(ReceiverStream::new(metrics_rx))
-                .boxed()
-                .await
-                .unwrap();
+            loop {
+                let stream =
+                    BroadcastStream::new(metrics_tx.subscribe()).filter_map(async |v| v.ok());
+                match client.stream_metrics(stream).boxed().await {
+                    Ok(_) => break,
+                    Err(err) => error!("Failed sending data to the collector: {:?}", err),
+                }
+                tokio::time::sleep(Duration::from_secs(5)).await;
+            }
             Ok(())
         });
 
