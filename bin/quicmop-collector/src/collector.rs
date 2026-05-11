@@ -2,7 +2,7 @@ use std::{
     collections::{HashMap, HashSet},
     io,
     net::IpAddr,
-    time::Duration,
+    time::{Duration, Instant},
 };
 
 use ipnet::IpNet;
@@ -30,6 +30,7 @@ struct AddressKey {
     dst: IpAddr,
     latency_type: String,
     host: String,
+    event_time: Instant,
 }
 
 #[derive(Clone, Hash, Eq, PartialEq)]
@@ -303,6 +304,7 @@ impl QuicmopSocketMetricsService for Collector {
                             dst,
                             latency_type: metric.latency_type.clone(),
                             host: metric.host.clone(),
+                            event_time: Instant::now(),
                         })
                         .or_insert_with_if(
                             async {
@@ -359,6 +361,7 @@ impl netobserv_flow_proto::proto::collector_server::Collector for Collector {
                             .and_then(|i| IpAddr::try_from(i.clone()).ok())
                             .map(|i| i.to_string())
                             .unwrap_or_default(),
+                        event_time: Instant::now(),
                     })
                     .or_insert_with_if(
                         async {
