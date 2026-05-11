@@ -207,8 +207,8 @@ pub struct ServiceConfig {
 impl ServiceConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
-            agent: self.agent,
-            output: self.output,
+            agent: other.agent,
+            output: other.output,
             metrics: self.metrics.merge(other.metrics),
             process: self.process.merge(other.process),
         }

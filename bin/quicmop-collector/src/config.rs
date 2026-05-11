@@ -269,7 +269,7 @@ pub struct ServiceConfig {
 impl ServiceConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
-            input: self.input,
+            input: other.input,
             output: self.output.merge(other.output),
             metrics: self.metrics.merge(other.metrics),
             process: self.process.merge(other.process),

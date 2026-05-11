@@ -223,8 +223,8 @@ pub struct ServiceConfig {
 impl ServiceConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
-            agent: self.agent,
-            output: self.output,
+            agent: other.agent,
+            output: other.output,
             metrics: self.metrics.merge(other.metrics),
             process: self.process.merge(other.process),
         }
@@ -302,14 +302,13 @@ impl TryFrom<CliArgs> for ServiceConfig {
         };
 
         let cli_config = ServiceConfig {
-            agent: Default::default(),
+            agent: agent_config,
             output: output_config,
             metrics: metrics_config,
             process: process_config,
         };
 
         let mut config = base_config.merge(cli_config);
-        config.agent = agent_config;
         config.process.log_level = new_log_level;
 
         Ok(config)

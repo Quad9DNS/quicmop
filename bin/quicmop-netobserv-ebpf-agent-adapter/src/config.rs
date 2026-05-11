@@ -272,7 +272,7 @@ impl ServiceConfig {
     pub fn merge(self, other: Self) -> Self {
         Self {
             agent: self.agent.merge(other.agent),
-            output: self.output,
+            output: other.output,
             metrics: self.metrics.merge(other.metrics),
             process: self.process.merge(other.process),
         }

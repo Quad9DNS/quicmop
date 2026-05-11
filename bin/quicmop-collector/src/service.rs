@@ -17,7 +17,7 @@ use quicmop_proto::proto::quicmop_socket_metrics_service_server::QuicmopSocketMe
 use quicmop_signals::{ServiceOsSignals, ServiceSignal};
 use tokio::runtime::Runtime;
 use tokio::sync::broadcast::{Receiver, Sender};
-use tokio::task::JoinHandle;
+use tokio::task::{JoinHandle, JoinSet};
 use tokio::time::interval;
 use tonic::transport::Server;
 use tracing::{Level, error, info, warn};
@@ -170,7 +170,14 @@ impl Service<InitState> {
                 )))
                 .serve_with_shutdown(
                     SocketAddr::new(config.input.grpc_server_addr, config.input.grpc_server_port),
-                    async move { server_shutdown_rx.recv().map(|_| ()).await },
+                    async move {
+                        server_shutdown_rx
+                            .recv()
+                            .map(|_| {
+                                info!("Shutting down metrics gRPC server");
+                            })
+                            .await
+                    },
                 ),
         );
         let netobserv_grpc_server_handle =
@@ -184,7 +191,12 @@ impl Service<InitState> {
                                     addr,
                                     config.input.netobserv_grpc_server_port.unwrap_or(2055),
                                 ),
-                                async move { shutdown_rx.recv().map(|_| ()).await },
+                                async move {
+                                    shutdown_rx
+                                        .recv()
+                                        .map(|_| info!("Shutting down netobserv gRPC server"))
+                                        .await
+                                },
                             ),
                     ),
                 )
@@ -192,13 +204,22 @@ impl Service<InitState> {
                 None
             };
 
+        let mut server_handles = JoinSet::new();
+        server_handles.spawn_on(async { grpc_server_handle.await.unwrap() }, handle);
+
+        if let Some(netobserv_grpc_server_handle) = netobserv_grpc_server_handle {
+            server_handles.spawn_on(
+                async { netobserv_grpc_server_handle.await.unwrap() },
+                handle,
+            );
+        }
+
         Ok(Service {
             config,
             state: StartedState {
                 signals,
                 metrics_handle,
-                grpc_server_handle,
-                netobserv_grpc_server_handle,
+                server_handles,
                 shutdown_tx,
             },
         })
@@ -208,8 +229,7 @@ impl Service<InitState> {
 pub struct StartedState {
     pub signals: ServiceOsSignals,
     pub metrics_handle: JoinHandle<()>,
-    pub grpc_server_handle: JoinHandle<Result<(), tonic::transport::Error>>,
-    pub netobserv_grpc_server_handle: Option<JoinHandle<Result<(), tonic::transport::Error>>>,
+    pub server_handles: JoinSet<Result<(), tonic::transport::Error>>,
     pub shutdown_tx: Sender<()>,
 }
 
@@ -225,8 +245,7 @@ impl Service<StartedState> {
                 StartedState {
                     signals,
                     metrics_handle,
-                    grpc_server_handle,
-                    netobserv_grpc_server_handle,
+                    server_handles,
                     shutdown_tx,
                 },
         } = self;
@@ -272,20 +291,13 @@ impl Service<StartedState> {
             }
         };
 
-        // TODO: Use shutdown tx instead
-        grpc_server_handle.abort();
-        let _ = grpc_server_handle.await;
-        if let Some(netobserv_grpc_server_handle) = netobserv_grpc_server_handle {
-            netobserv_grpc_server_handle.abort();
-            let _ = netobserv_grpc_server_handle.await;
-        }
-
         Service {
             config,
             state: FinishedState {
                 signal,
                 signal_receiver: signal_rx,
                 metrics_handle,
+                server_handles,
             },
         }
     }
@@ -295,6 +307,7 @@ pub struct FinishedState {
     pub signal: ServiceSignal,
     pub signal_receiver: Receiver<ServiceSignal>,
     pub metrics_handle: JoinHandle<()>,
+    pub server_handles: JoinSet<Result<(), tonic::transport::Error>>,
 }
 
 impl Service<FinishedState> {
@@ -306,11 +319,14 @@ impl Service<FinishedState> {
                     signal,
                     signal_receiver,
                     metrics_handle,
+                    server_handles,
                 },
         } = self;
 
         match signal {
-            ServiceSignal::Shutdown => Self::stop(config, metrics_handle, signal_receiver).await,
+            ServiceSignal::Shutdown => {
+                Self::stop(config, metrics_handle, server_handles, signal_receiver).await
+            }
             ServiceSignal::Quit => Self::quit(),
             _ => unreachable!(),
         }
@@ -318,13 +334,26 @@ impl Service<FinishedState> {
 
     async fn stop(
         config: ServiceConfig,
-        _metrics_handle: JoinHandle<()>,
+        metrics_handle: JoinHandle<()>,
+        mut server_handles: JoinSet<Result<(), tonic::transport::Error>>,
         mut signal_rx: Receiver<ServiceSignal>,
     ) -> ExitStatus {
         let mut graceful_timeout = interval(config.process.shutdown_timeout);
         graceful_timeout.reset();
 
+        if !server_handles.is_empty() && server_handles.try_join_next().is_some() {
+            metrics_handle.abort();
+            let _ = metrics_handle.await;
+            return ExitStatus::from_raw(exitcode::OK);
+        }
+
         tokio::select! {
+            _ = server_handles.join_all(), if !server_handles.is_empty() => {
+                metrics_handle.abort();
+                let _ = metrics_handle.await;
+                ExitStatus::from_raw(exitcode::OK)
+            }
+
             _ = graceful_timeout.tick() => {
                 warn!("Graceful shutdown timed out. Forcing shutdown.");
                 ExitStatus::from_raw(exitcode::OK)
