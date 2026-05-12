@@ -152,6 +152,7 @@ impl Service<InitState> {
             config.metrics.netmask.v4_dst,
             config.metrics.netmask.v6_dst,
             config.metrics.buckets.clone(),
+            config.metrics.address_store_memory_capacity_bytes,
             config.metrics.address_timeout,
             config.metrics.prefix.clone(),
         ));

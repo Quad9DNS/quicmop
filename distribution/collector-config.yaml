@@ -31,6 +31,9 @@
   ## Duration to store addresses for
   # address_timeout_ms: 60000
 
+  ## Max capacity of address store in bytes
+  # address_store_memory_capacity_bytes: 33554432
+
   ## Netmasks configuration
   # netmask:
     ## Netmask to apply to source IPv4 addresses

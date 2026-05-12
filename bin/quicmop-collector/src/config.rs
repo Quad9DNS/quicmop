@@ -106,6 +106,8 @@ struct MetricsConfig {
     buckets: Vec<f64>,
     #[serde(default = "default_address_timeout_ms")]
     address_timeout_ms: usize,
+    #[serde(default = "default_address_store_memory_capacity_bytes")]
+    address_store_memory_capacity_bytes: u64,
     #[serde(default)]
     netmask: NetmaskConfig,
 }
@@ -116,6 +118,7 @@ impl Default for MetricsConfig {
             name_prefix: default_metrics_prefix(),
             buckets: default_buckets(),
             address_timeout_ms: default_address_timeout_ms(),
+            address_store_memory_capacity_bytes: default_address_store_memory_capacity_bytes(),
             netmask: NetmaskConfig::default(),
         }
     }
@@ -127,6 +130,7 @@ impl MetricsConfig {
             prefix: self.name_prefix.clone(),
             buckets: self.buckets.clone(),
             address_timeout: Duration::from_millis(self.address_timeout_ms as u64),
+            address_store_memory_capacity_bytes: self.address_store_memory_capacity_bytes,
             netmask: self.netmask.validate()?,
         })
     }
@@ -279,6 +283,10 @@ fn default_v6_netmask() -> u8 {
     56
 }
 
+fn default_address_store_memory_capacity_bytes() -> u64 {
+    32 * 1024 * 1024
+}
+
 /// Parsed and validated process configuration for the quicmop service.
 #[derive(Debug, Clone)]
 pub struct ValidatedProcessConfig {
@@ -327,6 +335,8 @@ pub struct ValidatedMetricsConfig {
     pub prefix: String,
     /// Timeout to apply to inactive addresses
     pub address_timeout: Duration,
+    /// Bytes size of address store memory
+    pub address_store_memory_capacity_bytes: u64,
     /// Netmasks
     pub netmask: NetmaskConfig,
 }
@@ -350,6 +360,13 @@ impl ValidatedMetricsConfig {
                 other.address_timeout
             },
             netmask: self.netmask.merge(other.netmask),
+            address_store_memory_capacity_bytes: if other.address_store_memory_capacity_bytes
+                == default_address_store_memory_capacity_bytes()
+            {
+                self.address_store_memory_capacity_bytes
+            } else {
+                other.address_store_memory_capacity_bytes
+            },
         }
     }
 }
@@ -492,6 +509,7 @@ impl TryFrom<CliArgs> for ServiceConfig {
             prefix: value.metrics_name_prefix,
             buckets: Vec::default(),
             address_timeout: default_address_timeout(),
+            address_store_memory_capacity_bytes: default_address_store_memory_capacity_bytes(),
             netmask: netmask_config,
         };
 

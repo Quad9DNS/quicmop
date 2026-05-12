@@ -73,6 +73,7 @@ impl Collector {
         v4_dst_netmask: u8,
         v6_dst_netmask: u8,
         buckets: Vec<f64>,
+        address_store_memory_capacity: u64,
         timeout: Duration,
         name_prefix: String,
     ) -> Self {
@@ -94,7 +95,7 @@ impl Collector {
             buckets,
             addresses: Cache::builder()
                 .weigher(|k: &AddressKey, _| -> u32 { k.size() + size_of::<AddressEntry>() as u32 })
-                .max_capacity(32 * 1024 * 1024) // 32 MiB
+                .max_capacity(address_store_memory_capacity)
                 .time_to_live(timeout)
                 .build(),
             timeout,
