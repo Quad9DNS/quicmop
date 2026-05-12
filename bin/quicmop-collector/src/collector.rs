@@ -1,12 +1,12 @@
 use std::{
     collections::{HashMap, HashSet},
     io,
-    net::IpAddr,
-    time::{Duration, Instant},
+    net::{IpAddr, Ipv4Addr, SocketAddr},
+    time::{Duration, Instant, SystemTime, UNIX_EPOCH},
 };
 
 use ipnet::IpNet;
-use metrics::{Key, Label, Unit};
+use metrics::{Key, Label, Unit, counter, describe_counter, describe_gauge, gauge};
 use metrics_exporter_prometheus::{LabelSet, formatting};
 use metrics_util::storage::Histogram;
 use moka::future::Cache;
@@ -30,6 +30,7 @@ struct AddressKey {
     dst: IpAddr,
     latency_type: String,
     host: String,
+    agent_addr: IpAddr,
     event_time: Instant,
 }
 
@@ -39,6 +40,7 @@ struct NetworkKey {
     dst: IpNet,
     latency_type: String,
     host: String,
+    agent_addr: IpAddr,
 }
 
 impl AddressKey {
@@ -74,6 +76,16 @@ impl Collector {
         timeout: Duration,
         name_prefix: String,
     ) -> Self {
+        describe_gauge!(
+            "last_agent_update",
+            Unit::Seconds,
+            "Timestamp of last update received from an agent"
+        );
+        describe_counter!(
+            "agent_events_received",
+            Unit::Count,
+            "Number of metrics events received from an agent"
+        );
         Self {
             v4_src_netmask,
             v6_src_netmask,
@@ -124,6 +136,7 @@ impl MetricsExtraProvider for Collector {
                 dst: dst_net,
                 latency_type: key.latency_type.clone(),
                 host: key.host.clone(),
+                agent_addr: key.agent_addr,
             };
             let x = histograms
                 .entry(net_key.clone())
@@ -176,6 +189,7 @@ impl MetricsExtraProvider for Collector {
                         ),
                         Label::new("latency_type", key.latency_type.clone()),
                         Label::new("host", key.host.clone()),
+                        Label::new("agent_addr", key.agent_addr.to_string()),
                     ],
                 ),
                 &Default::default(),
@@ -284,8 +298,18 @@ impl QuicmopSocketMetricsService for Collector {
         &self,
         request: tonic::Request<tonic::Streaming<AgentMetricsRequest>>,
     ) -> std::result::Result<tonic::Response<CollectorResponse>, tonic::Status> {
+        let agent_addr = request
+            .remote_addr()
+            .unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0));
         let mut inner = request.into_inner();
         while let Ok(Some(metrics)) = inner.message().await {
+            if let Some(metric) = metrics.metrics.first() {
+                let now = SystemTime::now();
+                if let Ok(epoch_timestamp) = now.duration_since(UNIX_EPOCH) {
+                    gauge!("last_agent_update", "host" => metric.host.clone(), "agent_addr" => agent_addr.ip().to_string())
+                        .set(epoch_timestamp.as_secs_f64());
+                }
+            }
             for metric in &metrics.metrics {
                 if let Some(item_metrics) = metric.metrics {
                     let src: IpAddr = metric
@@ -304,6 +328,7 @@ impl QuicmopSocketMetricsService for Collector {
                             dst,
                             latency_type: metric.latency_type.clone(),
                             host: metric.host.clone(),
+                            agent_addr: agent_addr.ip(),
                             event_time: Instant::now(),
                         })
                         .or_insert_with_if(
@@ -315,6 +340,7 @@ impl QuicmopSocketMetricsService for Collector {
                             |v| item_metrics.min_rtt_us < v.min_rtt_us,
                         )
                         .await;
+                    counter!("agent_events_received", "host" => metric.host.clone(), "latency_type" => metric.latency_type.clone(), "agent_addr" => agent_addr.ip().to_string()).increment(1);
                 }
             }
         }
@@ -328,7 +354,11 @@ impl netobserv_flow_proto::proto::collector_server::Collector for Collector {
         &self,
         request: tonic::Request<Records>,
     ) -> Result<tonic::Response<CollectorReply>, tonic::Status> {
+        let agent_addr = request
+            .remote_addr()
+            .unwrap_or_else(|| SocketAddr::new(IpAddr::V4(Ipv4Addr::UNSPECIFIED), 0));
         let inner = request.into_inner();
+        let mut updated_metric = false;
         for entry in inner.entries.iter().filter(|e| {
             e.direction() == Direction::Ingress
                 && e.transport
@@ -361,6 +391,11 @@ impl netobserv_flow_proto::proto::collector_server::Collector for Collector {
                             .and_then(|i| IpAddr::try_from(i.clone()).ok())
                             .map(|i| i.to_string())
                             .unwrap_or_default(),
+                        agent_addr: entry
+                            .agent_ip
+                            .as_ref()
+                            .and_then(|i| IpAddr::try_from(i.clone()).ok())
+                            .unwrap_or_else(|| IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
                         event_time: Instant::now(),
                     })
                     .or_insert_with_if(
@@ -372,6 +407,21 @@ impl netobserv_flow_proto::proto::collector_server::Collector for Collector {
                         |v| (rtt.as_micros() as u64) < v.min_rtt_us,
                     )
                     .await;
+                let host = entry
+                    .agent_ip
+                    .as_ref()
+                    .and_then(|i| IpAddr::try_from(i.clone()).ok())
+                    .map(|i| i.to_string())
+                    .unwrap_or_default();
+                if !updated_metric {
+                    let now = SystemTime::now();
+                    if let Ok(epoch_timestamp) = now.duration_since(UNIX_EPOCH) {
+                        gauge!("last_agent_update", "host" => host.clone(), "agent_addr" => agent_addr.to_string())
+                            .set(epoch_timestamp.as_secs_f64());
+                    }
+                    updated_metric = true;
+                }
+                counter!("agent_events_received", "host" => host.clone(), "latency_type" => "TCP".to_string(), "agent_addr" => agent_addr.to_string()).increment(1);
             }
         }
         Ok(tonic::Response::new(CollectorReply {}))

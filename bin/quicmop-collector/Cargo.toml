@@ -69,7 +69,7 @@ snafu.workspace = true
 sysinfo.workspace = true
 tokio = { workspace = true, features = ["full"] }
 tokio-stream = { workspace = true, features = ["io-util", "sync"] }
-tonic.workspace = true
+tonic = { workspace = true, features = ["server"] }
 tracing-subscriber.workspace = true
 tracing.workspace = true
 
