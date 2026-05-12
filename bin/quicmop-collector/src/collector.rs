@@ -395,7 +395,7 @@ impl netobserv_flow_proto::proto::collector_server::Collector for Collector {
                             .agent_ip
                             .as_ref()
                             .and_then(|i| IpAddr::try_from(i.clone()).ok())
-                            .unwrap_or_else(|| IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
+                            .unwrap_or(IpAddr::V4(Ipv4Addr::UNSPECIFIED)),
                         event_time: Instant::now(),
                     })
                     .or_insert_with_if(

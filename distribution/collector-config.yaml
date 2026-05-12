@@ -31,6 +31,17 @@
   ## Duration to store addresses for
   # address_timeout_ms: 60000
 
+  ## Netmasks configuration
+  # netmask:
+    ## Netmask to apply to source IPv4 addresses
+    # v4_src: 24
+    ## Netmask to apply to source IPv6 addresses
+    # v6_src: 56
+    ## Netmask to apply to destination IPv4 addresses
+    # v4_dst: 24
+    ## Netmask to apply to destination IPv6 addresses
+    # v6_dst: 56
+
 ## collector process configuration
 # process:
   ## Log level can be configured

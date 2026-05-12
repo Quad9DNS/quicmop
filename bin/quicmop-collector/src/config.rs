@@ -12,7 +12,10 @@ use serde::{Deserialize, Serialize};
 use snafu::ResultExt;
 use tracing::Level;
 
-use crate::{cli::CliArgs, error::ConfigYamlParsingSnafu};
+use crate::{
+    cli::CliArgs,
+    error::{ConfigYamlParsingSnafu, QuicmopCollectorServiceError},
+};
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct FileBasedConfig {
@@ -103,6 +106,8 @@ struct MetricsConfig {
     buckets: Vec<f64>,
     #[serde(default = "default_address_timeout_ms")]
     address_timeout_ms: usize,
+    #[serde(default)]
+    netmask: NetmaskConfig,
 }
 
 impl Default for MetricsConfig {
@@ -111,6 +116,7 @@ impl Default for MetricsConfig {
             name_prefix: default_metrics_prefix(),
             buckets: default_buckets(),
             address_timeout_ms: default_address_timeout_ms(),
+            netmask: NetmaskConfig::default(),
         }
     }
 }
@@ -121,7 +127,91 @@ impl MetricsConfig {
             prefix: self.name_prefix.clone(),
             buckets: self.buckets.clone(),
             address_timeout: Duration::from_millis(self.address_timeout_ms as u64),
+            netmask: self.netmask.validate()?,
         })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NetmaskConfig {
+    #[serde(default = "default_v4_netmask")]
+    pub v4_src: u8,
+    #[serde(default = "default_v6_netmask")]
+    pub v6_src: u8,
+    #[serde(default = "default_v4_netmask")]
+    pub v4_dst: u8,
+    #[serde(default = "default_v6_netmask")]
+    pub v6_dst: u8,
+}
+
+impl Default for NetmaskConfig {
+    fn default() -> Self {
+        Self {
+            v4_src: default_v4_netmask(),
+            v6_src: default_v6_netmask(),
+            v4_dst: default_v4_netmask(),
+            v6_dst: default_v6_netmask(),
+        }
+    }
+}
+
+impl NetmaskConfig {
+    pub fn validate(&self) -> crate::Result<Self> {
+        Ok(Self {
+            v4_src: if self.v4_src > 32 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV4Netmask {
+                    netmask: self.v4_src,
+                }));
+            } else {
+                self.v4_src
+            },
+            v6_src: if self.v6_src > 128 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV6Netmask {
+                    netmask: self.v6_src,
+                }));
+            } else {
+                self.v6_src
+            },
+            v4_dst: if self.v4_dst > 32 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV4Netmask {
+                    netmask: self.v4_dst,
+                }));
+            } else {
+                self.v4_dst
+            },
+            v6_dst: if self.v6_dst > 128 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV6Netmask {
+                    netmask: self.v6_dst,
+                }));
+            } else {
+                self.v6_dst
+            },
+        })
+    }
+
+    pub fn merge(self, other: Self) -> Self {
+        Self {
+            v4_src: if other.v4_src == default_v4_netmask() {
+                self.v4_src
+            } else {
+                other.v4_src
+            },
+            v6_src: if other.v6_src == default_v6_netmask() {
+                self.v6_src
+            } else {
+                other.v6_src
+            },
+            v4_dst: if other.v4_dst == default_v4_netmask() {
+                self.v4_dst
+            } else {
+                other.v4_dst
+            },
+            v6_dst: if other.v6_dst == default_v6_netmask() {
+                self.v6_dst
+            } else {
+                other.v6_dst
+            },
+        }
     }
 }
 
@@ -181,6 +271,14 @@ fn default_address_timeout() -> Duration {
     Duration::from_secs(60)
 }
 
+fn default_v4_netmask() -> u8 {
+    24
+}
+
+fn default_v6_netmask() -> u8 {
+    56
+}
+
 /// Parsed and validated process configuration for the quicmop service.
 #[derive(Debug, Clone)]
 pub struct ValidatedProcessConfig {
@@ -229,6 +327,8 @@ pub struct ValidatedMetricsConfig {
     pub prefix: String,
     /// Timeout to apply to inactive addresses
     pub address_timeout: Duration,
+    /// Netmasks
+    pub netmask: NetmaskConfig,
 }
 
 impl ValidatedMetricsConfig {
@@ -249,6 +349,7 @@ impl ValidatedMetricsConfig {
             } else {
                 other.address_timeout
             },
+            netmask: self.netmask.merge(other.netmask),
         }
     }
 }
@@ -348,10 +449,50 @@ impl TryFrom<CliArgs> for ServiceConfig {
             exporters: HashSet::new(),
         };
 
+        let mut netmask_config = NetmaskConfig::default();
+
+        if let Some(v4_src) = value.v4_src_netmask {
+            if v4_src > 32 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV4Netmask {
+                    netmask: v4_src,
+                }));
+            } else {
+                netmask_config.v4_src = v4_src
+            }
+        }
+        if let Some(v6_src) = value.v6_src_netmask {
+            if v6_src > 128 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV6Netmask {
+                    netmask: v6_src,
+                }));
+            } else {
+                netmask_config.v6_src = v6_src
+            }
+        }
+        if let Some(v4_dst) = value.v4_dst_netmask {
+            if v4_dst > 32 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV4Netmask {
+                    netmask: v4_dst,
+                }));
+            } else {
+                netmask_config.v4_dst = v4_dst
+            }
+        }
+        if let Some(v6_dst) = value.v6_dst_netmask {
+            if v6_dst > 128 {
+                return Err(Box::new(QuicmopCollectorServiceError::InvalidV6Netmask {
+                    netmask: v6_dst,
+                }));
+            } else {
+                netmask_config.v6_dst = v6_dst
+            }
+        }
+
         let metrics_config = ValidatedMetricsConfig {
             prefix: value.metrics_name_prefix,
             buckets: Vec::default(),
             address_timeout: default_address_timeout(),
+            netmask: netmask_config,
         };
 
         let cli_config = ServiceConfig {

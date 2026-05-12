@@ -147,10 +147,10 @@ impl Service<InitState> {
         let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
 
         let collector = Arc::new(Collector::new(
-            24,
-            56,
-            24,
-            56,
+            config.metrics.netmask.v4_src,
+            config.metrics.netmask.v6_src,
+            config.metrics.netmask.v4_dst,
+            config.metrics.netmask.v6_dst,
             config.metrics.buckets.clone(),
             config.metrics.address_timeout,
             config.metrics.prefix.clone(),

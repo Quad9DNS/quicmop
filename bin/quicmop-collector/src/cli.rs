@@ -38,6 +38,22 @@ pub struct CliArgs {
     /// Prefix to add to all metrics names.
     #[clap(long, default_value = "quicmop")]
     pub metrics_name_prefix: String,
+
+    /// Netmask to use for source IPv4 addresses
+    #[clap(long)]
+    pub v4_src_netmask: Option<u8>,
+
+    /// Netmask to use for source IPv6 addresses
+    #[clap(long)]
+    pub v6_src_netmask: Option<u8>,
+
+    /// Netmask to use for destination IPv4 addresses
+    #[clap(long)]
+    pub v4_dst_netmask: Option<u8>,
+
+    /// Netmask to use for destination IPv6 addresses
+    #[clap(long)]
+    pub v6_dst_netmask: Option<u8>,
 }
 
 fn quicmop_collector_version() -> String {
