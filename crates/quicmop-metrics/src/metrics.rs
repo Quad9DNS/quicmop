@@ -1,0 +1,155 @@
+use std::{
+    collections::HashSet,
+    panic,
+    sync::Arc,
+    time::{Duration, Instant},
+};
+
+use futures::TryFutureExt;
+use metrics::{Gauge, Unit, describe_gauge, gauge};
+use metrics_exporter_prometheus::PrometheusHandle;
+use quicmop_metrics_exporters::{
+    MetricsExporter, MetricsExporterTaskBuilder, MetricsExtraProvider,
+};
+use tokio::{
+    runtime::{Handle, RuntimeMetrics},
+    sync::broadcast::Receiver,
+    task::JoinSet,
+};
+use tracing::{error, info};
+
+use crate::system_metrics::SystemMetrics;
+
+pub struct MetricsProcessor {
+    exporters: HashSet<MetricsExporter>,
+    metrics_handle: PrometheusHandle,
+    sytem_metrics: SystemMetrics,
+    process_init_time: Instant,
+}
+
+struct TokioRuntimeMetrics {
+    alive_tasks: Gauge,
+    pending_tasks: Gauge,
+    workers_count: Gauge,
+}
+
+impl TokioRuntimeMetrics {
+    fn new() -> Self {
+        describe_gauge!(
+            "service_alive_tasks",
+            Unit::Count,
+            "number of active asynchronous tasks"
+        );
+        describe_gauge!(
+            "service_pending_tasks",
+            Unit::Count,
+            "number asynchronous tasks waiting in the queue"
+        );
+        describe_gauge!(
+            "service_workers_count",
+            Unit::Count,
+            "number of workers available to process tasks"
+        );
+        Self {
+            alive_tasks: gauge!("service_alive_tasks"),
+            pending_tasks: gauge!("service_pending_tasks"),
+            workers_count: gauge!("service_workers_count"),
+        }
+    }
+
+    fn emit_metrics(&self, runtime_metrics: &RuntimeMetrics) {
+        self.alive_tasks
+            .set(runtime_metrics.num_alive_tasks() as f64);
+        self.pending_tasks
+            .set(runtime_metrics.global_queue_depth() as f64);
+        self.workers_count.set(runtime_metrics.num_workers() as f64);
+    }
+}
+
+impl MetricsProcessor {
+    pub fn from_exporters(
+        exporters: HashSet<MetricsExporter>,
+        metrics_handle: PrometheusHandle,
+        process_init_time: Instant,
+    ) -> Self {
+        Self {
+            exporters,
+            metrics_handle,
+            sytem_metrics: SystemMetrics::new(),
+            process_init_time,
+        }
+    }
+
+    pub async fn run<T: MetricsExtraProvider + 'static>(
+        self,
+        runtime_handle: Handle,
+        extra_metrics_provider: Arc<T>,
+        mut shutdown: Receiver<()>,
+    ) {
+        let mut export_tasks = JoinSet::new();
+
+        describe_gauge!(
+            "process_uptime_secs",
+            Unit::Seconds,
+            "duration the process has been running"
+        );
+        let uptime_metric = gauge!("process_uptime_secs");
+        let init_time = self.process_init_time;
+        let mut system_metrics = self.sytem_metrics;
+        let tokio_metrics = TokioRuntimeMetrics::new();
+        let runtime_metrics = runtime_handle.metrics();
+
+        // Initial metrics emission
+        uptime_metric.set(Instant::now().duration_since(init_time).as_secs_f64());
+        system_metrics.emit_system_metrics();
+
+        let upkeep_handle = self.metrics_handle.clone();
+        runtime_handle.spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_secs(5)).await;
+
+                tokio_metrics.emit_metrics(&runtime_metrics);
+
+                system_metrics.emit_system_metrics();
+                uptime_metric.set(Instant::now().duration_since(init_time).as_secs_f64());
+
+                upkeep_handle.run_upkeep();
+            }
+        });
+
+        for metrics_exporter in self.exporters.clone() {
+            export_tasks.spawn_on(
+                metrics_exporter
+                    .start_exporting(
+                        self.metrics_handle.clone(),
+                        Arc::clone(&extra_metrics_provider),
+                    )
+                    .map_err(|err| {
+                        error!("Metrics exporter task has failed with an error: {}", err);
+                    }),
+                &runtime_handle,
+            );
+        }
+
+        loop {
+            tokio::select! {
+                Some(task) = export_tasks.join_next() => {
+                    match task {
+                        Ok(_t) => {
+                            info!("Metrics exporter task completed successfully.");
+                        }
+                        Err(err) if err.is_panic() => panic::resume_unwind(err.into_panic()),
+                        Err(err) => {
+                            error!(message = "Metrics exporter task failed!", error = %err);
+                        }
+                    }
+                },
+
+                _ = shutdown.recv() => {
+                    info!("Stopping metrics processor...");
+                    break;
+                }
+            }
+        }
+    }
+}

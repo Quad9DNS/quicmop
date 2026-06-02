@@ -1,0 +1,11 @@
+FROM alpine:3.21
+
+ARG CARGO_TARGET_DIR="target"
+ARG CARGO_BUILD_TARGET="."
+
+COPY ./$CARGO_TARGET_DIR/$CARGO_BUILD_TARGET/release/quicmop-netobserv-ebpf-agent-adapter /usr/local/bin/quicmop-netobserv-ebpf-agent-adapter
+
+# Smoke test
+RUN ["quicmop-netobserv-ebpf-agent-adapter", "--version"]
+
+ENTRYPOINT ["/usr/local/bin/quicmop-netobserv-ebpf-agent-adapter"]

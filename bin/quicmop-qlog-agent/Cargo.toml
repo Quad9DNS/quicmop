@@ -1,0 +1,69 @@
+[package]
+name = "quicmop-qlog-agent"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+
+[package.metadata.deb]
+name = "quicmop-qlog-agent"
+maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
+assets = [
+    { source = "target/release/quicmop-qlog-agent", dest = "usr/bin/", mode = "755" },
+    { source = "../../distribution/qlog-agent-config.yaml", dest = "etc/quicmop/quicmop-qlog-agent.yaml", mode = "644" },
+    { source = "../../README.md", dest = "usr/share/doc/quicmop-qlog-agent/README", mode = "644" },
+    { source = "../../LICENSE", dest = "usr/share/licenses/quicmop-qlog-agent/LICENSE", mode = "644" },
+]
+
+[package.metadata.deb.variants.default]
+depends = []
+default-features = true
+
+[package.metadata.deb.systemd-units]
+unit-scripts = "../../distribution/systemd/"
+unit-name = "quicmop-qlog-agent"
+enable = false
+start = false
+
+[package.metadata.generate-rpm]
+name = "quicmop-qlog-agent"
+maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
+assets = [
+    { source = "target/release/quicmop-qlog-agent", dest = "/usr/bin/quicmop-qlog-agent", mode = "755" },
+    { source = "../../distribution/qlog-agent-config.yaml", dest = "etc/quicmop/quicmop-qlog-agent.yaml", mode = "644" },
+    { source = "../../README.md", dest = "/usr/share/doc/quicmop-qlog-agent/README", mode = "644", doc = true },
+    { source = "../../LICENSE", dest = "/usr/share/licenses/quicmop-qlog-agent/LICENSE", mode = "644" },
+    { source = "../../distribution/systemd/quicmop-qlog-agent.service", dest = "/lib/systemd/system/quicmop-qlog-agent.service", mode = "644" },
+]
+
+[package.metadata.generate-rpm.variants.default]
+requires = {}
+default-features = true
+
+[dependencies]
+async-stream.workspace = true
+clap = { workspace = true, features = ["cargo", "derive", "env", "string"] }
+exitcode.workspace = true
+futures.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-util.workspace = true
+metrics.workspace = true
+notify-debouncer-mini.workspace = true
+qlog = { workspace = true }
+quicmop-metrics-exporters.workspace = true
+quicmop-metrics.workspace = true
+quicmop-proto.workspace = true
+quicmop-signals.workspace = true
+rustix = { workspace = true, features = ["system"] }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
+snafu.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream.workspace = true
+tonic.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true

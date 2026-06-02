@@ -1,0 +1,68 @@
+[package]
+name = "quicmop-netobserv-ebpf-agent-adapter"
+authors.workspace = true
+description.workspace = true
+edition.workspace = true
+repository.workspace = true
+license.workspace = true
+readme.workspace = true
+homepage.workspace = true
+version.workspace = true
+
+[package.metadata.deb]
+name = "quicmop-netobserv-ebpf-agent-adapter"
+maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
+assets = [
+    { source = "target/release/quicmop-netobserv-ebpf-agent-adapter", dest = "usr/bin/", mode = "755" },
+    { source = "../../distribution/netobserv-ebpf-agent-adapter-config.yaml", dest = "etc/quicmop/quicmop-netobserv-ebpf-agent-adapter.yaml", mode = "644" },
+    { source = "../../README.md", dest = "usr/share/doc/quicmop-netobserv-ebpf-agent-adapter/README", mode = "644" },
+    { source = "../../LICENSE", dest = "usr/share/licenses/quicmop-netobserv-ebpf-agent-adapter/LICENSE", mode = "644" },
+]
+
+[package.metadata.deb.variants.default]
+depends = []
+default-features = true
+
+[package.metadata.deb.systemd-units]
+unit-scripts = "../../distribution/systemd/"
+unit-name = "quicmop-netobserv-ebpf-agent-adapter"
+enable = false
+start = false
+
+[package.metadata.generate-rpm]
+name = "quicmop-netobserv-ebpf-agent-adapter"
+maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
+assets = [
+    { source = "target/release/quicmop-netobserv-ebpf-agent-adapter", dest = "/usr/bin/quicmop-netobserv-ebpf-agent-adapter", mode = "755" },
+    { source = "../../distribution/netobserv-ebpf-agent-adapter-config.yaml", dest = "etc/quicmop/quicmop-netobserv-ebpf-agent-adapter.yaml", mode = "644" },
+    { source = "../../README.md", dest = "/usr/share/doc/quicmop-netobserv-ebpf-agent-adapter/README", mode = "644", doc = true },
+    { source = "../../LICENSE", dest = "/usr/share/licenses/quicmop-netobserv-ebpf-agent-adapter/LICENSE", mode = "644" },
+    { source = "../../distribution/systemd/quicmop-netobserv-ebpf-agent-adapter.service", dest = "/lib/systemd/system/quicmop-netobserv-ebpf-agent-adapter.service", mode = "644" },
+]
+
+[package.metadata.generate-rpm.variants.default]
+requires = {}
+default-features = true
+
+[dependencies]
+async-stream.workspace = true
+clap = { workspace = true, features = ["cargo", "derive", "string"] }
+exitcode.workspace = true
+futures.workspace = true
+netobserv-flow-proto.workspace = true
+metrics-exporter-prometheus.workspace = true
+metrics-util.workspace = true
+metrics.workspace = true
+quicmop-metrics-exporters.workspace = true
+quicmop-metrics.workspace = true
+quicmop-proto.workspace = true
+quicmop-signals.workspace = true
+rustix = { workspace = true, features = ["system"] }
+serde = { workspace = true, features = ["derive"] }
+serde_yaml.workspace = true
+snafu.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread"] }
+tokio-stream = { workspace = true, features = ["sync"] }
+tonic.workspace = true
+tracing-subscriber.workspace = true
+tracing.workspace = true

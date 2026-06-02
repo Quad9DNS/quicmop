@@ -1,0 +1,370 @@
+#![allow(missing_docs)]
+use std::io;
+use std::net::SocketAddr;
+use std::process::ExitStatus;
+use std::sync::Arc;
+use std::time::{Instant, SystemTime, UNIX_EPOCH};
+
+use clap::Parser;
+use exitcode::ExitCode;
+use futures::FutureExt;
+use metrics::{Unit, describe_gauge, gauge};
+use metrics_exporter_prometheus::{Matcher, PrometheusBuilder};
+use metrics_util::layers::{PrefixLayer, Stack};
+use netobserv_flow_proto::proto::collector_server::CollectorServer;
+use quicmop_metrics::metrics::MetricsProcessor;
+use quicmop_proto::proto::quicmop_socket_metrics_service_server::QuicmopSocketMetricsServiceServer;
+use quicmop_signals::{ServiceOsSignals, ServiceSignal};
+use tokio::runtime::Runtime;
+use tokio::sync::broadcast::{Receiver, Sender};
+use tokio::task::{JoinHandle, JoinSet};
+use tokio::time::interval;
+use tonic::transport::Server;
+use tracing::{Level, error, info, warn};
+use tracing_subscriber::fmt::format::FmtSpan;
+
+use crate::cli::CliArgs;
+use crate::collector::Collector;
+use crate::config::ServiceConfig;
+
+use std::os::unix::process::ExitStatusExt;
+use tokio::runtime::Handle;
+
+pub struct Service<T> {
+    pub config: ServiceConfig,
+    pub state: T,
+}
+
+pub struct InitState {
+    pub signals: ServiceOsSignals,
+    pub metrics_processor: MetricsProcessor,
+}
+
+impl Service<()> {
+    pub fn init_and_run() -> ExitStatus {
+        Service::<InitState>::run()
+    }
+}
+
+impl Service<InitState> {
+    pub fn run() -> ExitStatus {
+        let (runtime, app) = Self::prepare_start().unwrap_or_else(|code| std::process::exit(code));
+
+        runtime.block_on(app.run())
+    }
+
+    pub fn prepare_start() -> Result<(Runtime, Service<StartedState>), ExitCode> {
+        Self::prepare()
+            .and_then(|(runtime, app)| app.start(runtime.handle()).map(|app| (runtime, app)))
+    }
+
+    pub fn prepare() -> Result<(Runtime, Self), ExitCode> {
+        let args = CliArgs::try_parse().map_err(|error| {
+            _ = error.print();
+            error.exit_code()
+        })?;
+
+        Self::prepare_from_config(args.try_into().map_err(|err| {
+            // The tracing subscriber is never initialized before this
+            tracing_subscriber::fmt()
+                .with_file(false)
+                .with_target(false)
+                .with_max_level(Level::INFO)
+                .with_writer(io::stderr)
+                .init();
+            error!(message = "Configuration error.", error = %err);
+            exitcode::USAGE
+        })?)
+    }
+
+    pub fn prepare_from_config(config: ServiceConfig) -> Result<(Runtime, Self), ExitCode> {
+        let init_time = Instant::now();
+
+        let runtime = tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()
+            .expect("Building async runtime failed!");
+
+        tracing_subscriber::fmt()
+            .with_file(false)
+            .with_target(false)
+            .with_max_level(config.process.log_level)
+            .with_span_events(FmtSpan::FULL)
+            .with_writer(io::stderr)
+            .init();
+
+        let metrics_recorder = PrometheusBuilder::new()
+            .set_buckets_for_metric(
+                Matcher::Suffix("bucket".to_string()),
+                &config.metrics.buckets,
+            )
+            .unwrap()
+            .build_recorder();
+        let metrics_handle = metrics_recorder.handle();
+
+        let layers = Stack::new(metrics_recorder);
+
+        let metrics_prefix = config.metrics.prefix.clone();
+        if !metrics_prefix.is_empty() {
+            layers
+                .push(PrefixLayer::new(metrics_prefix))
+                .install()
+                .expect("Failed preparing metrics recorder!");
+        } else {
+            layers
+                .install()
+                .expect("Failed preparing metrics recorder!");
+        }
+
+        let signals = ServiceOsSignals::new(&runtime);
+        let metrics_processor = MetricsProcessor::from_exporters(
+            config.output.exporters.clone(),
+            metrics_handle,
+            init_time,
+        );
+        Ok((
+            runtime,
+            Self {
+                config,
+                state: InitState {
+                    signals,
+                    metrics_processor,
+                },
+            },
+        ))
+    }
+
+    pub fn start(self, handle: &Handle) -> Result<Service<StartedState>, ExitCode> {
+        let Self {
+            config,
+            state:
+                InitState {
+                    signals,
+                    metrics_processor,
+                },
+        } = self;
+
+        let (shutdown_tx, mut shutdown_rx) = tokio::sync::broadcast::channel::<()>(1);
+
+        let collector = Arc::new(Collector::new(
+            config.metrics.netmask.v4_src,
+            config.metrics.netmask.v6_src,
+            config.metrics.netmask.v4_dst,
+            config.metrics.netmask.v6_dst,
+            config.metrics.buckets.clone(),
+            config.metrics.address_store_memory_capacity_bytes,
+            config.metrics.address_timeout,
+            config.metrics.prefix.clone(),
+        ));
+
+        let metrics_handle = handle.spawn(metrics_processor.run(
+            handle.clone(),
+            Arc::clone(&collector),
+            shutdown_tx.subscribe(),
+        ));
+
+        let mut server_shutdown_rx = shutdown_tx.subscribe();
+        let grpc_server_handle = handle.spawn(
+            Server::builder()
+                .add_service(QuicmopSocketMetricsServiceServer::from_arc(Arc::clone(
+                    &collector,
+                )))
+                .serve_with_shutdown(
+                    SocketAddr::new(config.input.grpc_server_addr, config.input.grpc_server_port),
+                    async move {
+                        server_shutdown_rx
+                            .recv()
+                            .map(|_| {
+                                info!("Shutting down metrics gRPC server");
+                            })
+                            .await
+                    },
+                ),
+        );
+        let netobserv_grpc_server_handle =
+            if let Some(addr) = config.input.netobserv_grpc_server_addr {
+                Some(
+                    handle.spawn(
+                        Server::builder()
+                            .add_service(CollectorServer::from_arc(collector))
+                            .serve_with_shutdown(
+                                SocketAddr::new(
+                                    addr,
+                                    config.input.netobserv_grpc_server_port.unwrap_or(2055),
+                                ),
+                                async move {
+                                    shutdown_rx
+                                        .recv()
+                                        .map(|_| info!("Shutting down netobserv gRPC server"))
+                                        .await
+                                },
+                            ),
+                    ),
+                )
+            } else {
+                None
+            };
+
+        let mut server_handles = JoinSet::new();
+        server_handles.spawn_on(async { grpc_server_handle.await.unwrap() }, handle);
+
+        if let Some(netobserv_grpc_server_handle) = netobserv_grpc_server_handle {
+            server_handles.spawn_on(
+                async { netobserv_grpc_server_handle.await.unwrap() },
+                handle,
+            );
+        }
+
+        Ok(Service {
+            config,
+            state: StartedState {
+                signals,
+                metrics_handle,
+                server_handles,
+                shutdown_tx,
+            },
+        })
+    }
+}
+
+pub struct StartedState {
+    pub signals: ServiceOsSignals,
+    pub metrics_handle: JoinHandle<()>,
+    pub server_handles: JoinSet<Result<(), tonic::transport::Error>>,
+    pub shutdown_tx: Sender<()>,
+}
+
+impl Service<StartedState> {
+    pub async fn run(self) -> ExitStatus {
+        self.main().await.shutdown().await
+    }
+
+    pub async fn main(self) -> Service<FinishedState> {
+        let Service {
+            config,
+            state:
+                StartedState {
+                    signals,
+                    metrics_handle,
+                    server_handles,
+                    shutdown_tx,
+                },
+        } = self;
+
+        let mut signal_rx = signals.receiver;
+
+        describe_gauge!(
+            "last_reload_signal",
+            Unit::Seconds,
+            "Timestamp of last reload signal received"
+        );
+        let last_reload_signal = gauge!("last_reload_signal");
+
+        let signal = loop {
+            tokio::select! {
+                signal = signal_rx.recv() => {
+                    info!(message = "Handling signal", signal = ?signal);
+                    match signal{
+                        Ok(ServiceSignal::ReloadConfig) => {
+                            // Other components will handle config reload
+                            // Here we will just emit the metric
+                            let now = SystemTime::now();
+                            // Ignoring error here, since there is nothing meaningful to be done
+                            if let Ok(epoch_timestamp) = now.duration_since(UNIX_EPOCH) {
+                                last_reload_signal.set(epoch_timestamp.as_secs_f64())
+                            }
+                        },
+                        Ok(ServiceSignal::Shutdown) => {
+                            let _ = shutdown_tx.send(());
+                            info!("Starting graceful shutdown. ({} ms)", config.process.shutdown_timeout.as_millis());
+                            break ServiceSignal::Shutdown;
+                        }
+                        Ok(ServiceSignal::Quit) => {
+                            break ServiceSignal::Quit;
+                        }
+                        Err(err) => {
+                            error!(message = "Receiving OS signal failed!", error = %err);
+                        }
+                    }
+                }
+
+                else => unreachable!("Signal streams never end"),
+            }
+        };
+
+        Service {
+            config,
+            state: FinishedState {
+                signal,
+                signal_receiver: signal_rx,
+                metrics_handle,
+                server_handles,
+            },
+        }
+    }
+}
+
+pub struct FinishedState {
+    pub signal: ServiceSignal,
+    pub signal_receiver: Receiver<ServiceSignal>,
+    pub metrics_handle: JoinHandle<()>,
+    pub server_handles: JoinSet<Result<(), tonic::transport::Error>>,
+}
+
+impl Service<FinishedState> {
+    pub async fn shutdown(self) -> ExitStatus {
+        let Service {
+            config,
+            state:
+                FinishedState {
+                    signal,
+                    signal_receiver,
+                    metrics_handle,
+                    server_handles,
+                },
+        } = self;
+
+        match signal {
+            ServiceSignal::Shutdown => {
+                Self::stop(config, metrics_handle, server_handles, signal_receiver).await
+            }
+            ServiceSignal::Quit => Self::quit(),
+            _ => unreachable!(),
+        }
+    }
+
+    async fn stop(
+        config: ServiceConfig,
+        metrics_handle: JoinHandle<()>,
+        mut server_handles: JoinSet<Result<(), tonic::transport::Error>>,
+        mut signal_rx: Receiver<ServiceSignal>,
+    ) -> ExitStatus {
+        let mut graceful_timeout = interval(config.process.shutdown_timeout);
+        graceful_timeout.reset();
+
+        if !server_handles.is_empty() && server_handles.try_join_next().is_some() {
+            metrics_handle.abort();
+            let _ = metrics_handle.await;
+            return ExitStatus::from_raw(exitcode::OK);
+        }
+
+        tokio::select! {
+            _ = server_handles.join_all(), if !server_handles.is_empty() => {
+                metrics_handle.abort();
+                let _ = metrics_handle.await;
+                ExitStatus::from_raw(exitcode::OK)
+            }
+
+            _ = graceful_timeout.tick() => {
+                warn!("Graceful shutdown timed out. Forcing shutdown.");
+                ExitStatus::from_raw(exitcode::OK)
+            }
+
+            _ = signal_rx.recv() => Self::quit(),
+        }
+    }
+
+    fn quit() -> ExitStatus {
+        ExitStatus::from_raw(exitcode::OK)
+    }
+}

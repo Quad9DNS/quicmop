@@ -1,0 +1,121 @@
+// Taken from https://github.com/netobserv/netobserv-ebpf-agent/blob/534dcbb13b23aad0272af9768884bc3db23b0346/proto/flow.proto
+
+syntax = "proto3";
+
+package pbflow;
+
+import 'google/protobuf/timestamp.proto';
+import 'google/protobuf/duration.proto';
+
+option go_package = "./pbflow";
+
+service Collector {
+  rpc Send(Records) returns (CollectorReply) {}
+}
+
+// intentionally empty
+message CollectorReply {}
+
+message Records {
+  repeated Record entries = 1;
+}
+
+message DupMapEntry {
+  string interface = 1;
+  Direction direction = 2;
+  string udn = 3;
+}
+
+message NetworkEvent {
+  map<string, string> events = 1;
+}
+
+message Record {
+  // protocol as defined by ETH_P_* in linux/if_ether.h
+  // https://github.com/torvalds/linux/blob/master/include/uapi/linux/if_ether.h
+  uint32 eth_protocol = 1;
+  Direction direction = 2;
+  google.protobuf.Timestamp time_flow_start = 3;
+  google.protobuf.Timestamp time_flow_end = 4;
+
+  // OSI-layer attributes
+  DataLink data_link = 5;
+  Network network = 6;
+  Transport transport = 7;
+
+  uint64 bytes = 8;
+  uint64 packets = 9;
+  string interface = 10;
+
+  // Deprecated / unused
+  bool duplicate = 11;
+
+  // Agent IP address to help identifying the source of the flow
+  IP agent_ip = 12;
+  uint32 flags = 13;
+  uint32 icmp_type = 14;
+  uint32 icmp_code = 15;
+  uint64 pkt_drop_bytes = 16;
+  uint64 pkt_drop_packets = 17;
+  uint32 pkt_drop_latest_flags = 18;
+  uint32 pkt_drop_latest_state = 19;
+  uint32 pkt_drop_latest_drop_cause = 20;
+  uint32 dns_id = 21;
+  uint32 dns_flags = 22;
+  google.protobuf.Duration dns_latency = 23;
+  google.protobuf.Duration time_flow_rtt = 24;
+  uint32 dns_errno = 25;
+  repeated DupMapEntry dup_list = 26;
+  repeated NetworkEvent network_events_metadata = 27;
+  Xlat xlat = 28;
+  uint32 sampling = 29;
+  uint32 ipsec_encrypted = 30;
+  int32 ipsec_encrypted_ret = 31;
+  string dns_name = 32;
+  uint32 ssl_version = 33;
+  bool ssl_mismatch = 34;
+  uint32 tls_types = 35;
+  uint32 tls_cipher_suite = 36;
+  uint32 tls_key_share = 37;
+}
+
+message DataLink {
+  uint64 src_mac = 1;
+  uint64 dst_mac = 2;
+}
+
+message Network {
+  IP src_addr = 1;
+  IP dst_addr = 2;
+  uint32 dscp = 3;
+}
+
+message IP {
+  oneof ip_family {
+    fixed32 ipv4 = 1;
+    bytes ipv6 = 2;
+  }
+}
+
+message Transport {
+  uint32 src_port = 1;
+  uint32 dst_port = 2;
+  // protocol as defined by IPPROTO_* in linux/in.h
+  // https://github.com/torvalds/linux/blob/master/include/uapi/linux/in.h
+  uint32 protocol = 3;
+}
+
+// as defined by field 61 in
+// https://www.iana.org/assignments/ipfix/ipfix.xhtml
+enum Direction {
+  INGRESS = 0;
+  EGRESS = 1;
+}
+
+message Xlat {
+  IP src_addr = 1;
+  IP dst_addr = 2;
+  uint32 src_port = 3;
+  uint32 dst_port = 4;
+  uint32 zone_id = 5;
+}

@@ -1,0 +1,11 @@
+FROM alpine:3.21
+
+ARG CARGO_TARGET_DIR="target"
+ARG CARGO_BUILD_TARGET="."
+
+COPY ./$CARGO_TARGET_DIR/$CARGO_BUILD_TARGET/release/quicmop-collector /usr/local/bin/quicmop-collector
+
+# Smoke test
+RUN ["quicmop-collector", "--version"]
+
+ENTRYPOINT ["/usr/local/bin/quicmop-collector"]
