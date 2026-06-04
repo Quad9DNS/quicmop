@@ -23,10 +23,11 @@ endif
 DOCS := $(addprefix target/man/,\
 	quicmop-collector.1)
 
-all: doc target/default/release/quicmop-collector target/default/release/quicmop-kernel-agent target/default/release/quicmop-netobserv-ebpf-agent-adapter
+all: doc target/default/release/quicmop-collector target/default/release/quicmop-kernel-agent target/default/release/quicmop-netobserv-ebpf-agent-adapter target/default/release/quicmop-qlog-agent
 	cp target/default/release/quicmop-collector target/quicmop-collector
 	cp target/default/release/quicmop-kernel-agent target/quicmop-kernel-agent
 	cp target/default/release/quicmop-netobserv-ebpf-agent-adapter target/quicmop-netobserv-ebpf-agent-adapter
+	cp target/default/release/quicmop-qlog-agent target/quicmop-qlog-agent
 
 .PHONY: container-collector-debian
 container-collector-debian: collector-deb
@@ -72,6 +73,9 @@ target/%/release/quicmop-kernel-agent:
 
 target/%/release/quicmop-netobserv-ebpf-agent-adapter:
 	CARGO_TARGET_DIR="target/$*" cargo build -p quicmop-netobserv-ebpf-agent-adapter --release
+
+target/%/release/quicmop-qlog-agent:
+	CARGO_TARGET_DIR="target/$*" cargo build -p quicmop-qlog-agent --release
 
 .PHONY: collector-deb
 collector-deb: doc
@@ -173,14 +177,20 @@ RM?=rm -f
 clean:
 	cargo clean
 
-install: $(DOCS) target/default/release/quicmop-collector
+install: $(DOCS)
 	mkdir -m755 -p $(DESTDIR)$(BINDIR) $(DESTDIR)$(MANDIR)/man1 $(DESTDIR)$(MANDIR)/man5 $(DESTDIR)$(MANDIR)/man7
 	install -m755 target/quicmop-collector $(DESTDIR)$(BINDIR)/quicmop-collector
+	install -m755 target/quicmop-kernel-agent $(DESTDIR)$(BINDIR)/quicmop-kernel-agent
+	install -m755 target/quicmop-netobserv-ebpf-agent-adapter $(DESTDIR)$(BINDIR)/quicmop-netobserv-ebpf-agent-adapter
+	install -m755 target/quicmop-qlog-agent $(DESTDIR)$(BINDIR)/quicmop-qlog-agent
 
 RMDIR_IF_EMPTY:=sh -c '! [ -d $$0 ] || ls -1qA $$0 | grep -q . || rmdir $$0'
 
 uninstall:
 	$(RM) $(DESTDIR)$(BINDIR)/quicmop-collector
+	$(RM) $(DESTDIR)$(BINDIR)/quicmop-kernel-agent
+	$(RM) $(DESTDIR)$(BINDIR)/quicmop-netobserv-ebpf-agent-adapter
+	$(RM) $(DESTDIR)$(BINDIR)/quicmop-qlog-agent
 	${RMDIR_IF_EMPTY} $(DESTDIR)$(BINDIR)
 	$(RMDIR_IF_EMPTY) $(DESTDIR)$(MANDIR)/man1
 	$(RMDIR_IF_EMPTY) $(DESTDIR)$(MANDIR)/man5
