@@ -32,6 +32,10 @@ Qlog agent works by reading from quicmop logs from `QLOG_DIR` - each file in tha
 
 ## Installation
 
+### From releases
+
+All releases have `deb` and `rpm` packages attached for all agents and the collector. Binaries are provided as well.
+
 ### From source
 
 Install using `make`:

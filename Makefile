@@ -87,7 +87,7 @@ collector-deb: doc
 collector-rpm: target/default/generate-rpm/quicmop-collector_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-collector_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-collector $(DOCS)
-	cargo generate-rpm -p quicmop-collector --target-dir "target/$*" --variant $*
+	cargo generate-rpm -p bin/quicmop-collector --target-dir "target/$*" --variant $*
 
 .PHONY: kernel-agent-deb
 kernel-agent-deb: doc
@@ -99,7 +99,7 @@ kernel-agent-deb: doc
 kernel-agent-rpm: target/default/generate-rpm/quicmop-kernel-agent_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-kernel-agent_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-kernel-agent $(DOCS)
-	cargo generate-rpm -p quicmop-kernel-agent --target-dir "target/$*" --variant $*
+	cargo generate-rpm -p bin/quicmop-kernel-agent --target-dir "target/$*" --variant $*
 
 .PHONY: netobserv-ebpf-agent-adapter-deb
 netobserv-ebpf-agent-adapter-deb: doc
@@ -111,7 +111,7 @@ netobserv-ebpf-agent-adapter-deb: doc
 netobserv-ebpf-agent-adapter-rpm: target/default/generate-rpm/quicmop-netobserv-ebpf-agent-adapter_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-netobserv-ebpf-agent-adapter_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-netobserv-ebpf-agent-adapter $(DOCS)
-	cargo generate-rpm -p quicmop-netobserv-ebpf-agent-adapter --target-dir "target/$*" --variant $*
+	cargo generate-rpm -p bin/quicmop-netobserv-ebpf-agent-adapter --target-dir "target/$*" --variant $*
 
 .PHONY: qlog-agent-deb
 qlog-agent-deb: doc
@@ -123,7 +123,7 @@ qlog-agent-deb: doc
 qlog-agent-rpm: target/default/generate-rpm/quicmop-qlog-agent_$(VERSION)-1.x86_64.rpm doc
 
 target/%/generate-rpm/quicmop-qlog-agent_$(VERSION)-1.x86_64.rpm: target/%/release/quicmop-qlog-agent $(DOCS)
-	cargo generate-rpm -p quicmop-qlog-agent --target-dir "target/$*" --variant $*
+	cargo generate-rpm -p bin/quicmop-qlog-agent --target-dir "target/$*" --variant $*
 
 .PHONY: dev
 dev:

@@ -34,7 +34,7 @@ name = "quicmop-netobserv-ebpf-agent-adapter"
 maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
 assets = [
     { source = "target/release/quicmop-netobserv-ebpf-agent-adapter", dest = "/usr/bin/quicmop-netobserv-ebpf-agent-adapter", mode = "755" },
-    { source = "../../distribution/netobserv-ebpf-agent-adapter-config.yaml", dest = "etc/quicmop/quicmop-netobserv-ebpf-agent-adapter.yaml", mode = "644" },
+    { source = "../../distribution/netobserv-ebpf-agent-adapter-config.yaml", dest = "/etc/quicmop/quicmop-netobserv-ebpf-agent-adapter.yaml", mode = "644" },
     { source = "../../README.md", dest = "/usr/share/doc/quicmop-netobserv-ebpf-agent-adapter/README", mode = "644", doc = true },
     { source = "../../LICENSE", dest = "/usr/share/licenses/quicmop-netobserv-ebpf-agent-adapter/LICENSE", mode = "644" },
     { source = "../../distribution/systemd/quicmop-netobserv-ebpf-agent-adapter.service", dest = "/lib/systemd/system/quicmop-netobserv-ebpf-agent-adapter.service", mode = "644" },

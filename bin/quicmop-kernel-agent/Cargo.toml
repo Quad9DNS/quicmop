@@ -34,7 +34,7 @@ name = "quicmop-kernel-agent"
 maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
 assets = [
     { source = "target/release/quicmop-kernel-agent", dest = "/usr/bin/quicmop-kernel-agent", mode = "755" },
-    { source = "../../distribution/kernel-agent-config.yaml", dest = "etc/quicmop/quicmop-kernel-agent.yaml", mode = "644" },
+    { source = "../../distribution/kernel-agent-config.yaml", dest = "/etc/quicmop/quicmop-kernel-agent.yaml", mode = "644" },
     { source = "../../README.md", dest = "/usr/share/doc/quicmop-kernel-agent/README", mode = "644", doc = true },
     { source = "../../LICENSE", dest = "/usr/share/licenses/quicmop-kernel-agent/LICENSE", mode = "644" },
     { source = "../../distribution/systemd/quicmop-kernel-agent.service", dest = "/lib/systemd/system/quicmop-kernel-agent.service", mode = "644" },

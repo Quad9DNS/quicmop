@@ -34,7 +34,7 @@ name = "quicmop-qlog-agent"
 maintainer = "Ensar Sarajčić <dev@ensarsarajcic.com>"
 assets = [
     { source = "target/release/quicmop-qlog-agent", dest = "/usr/bin/quicmop-qlog-agent", mode = "755" },
-    { source = "../../distribution/qlog-agent-config.yaml", dest = "etc/quicmop/quicmop-qlog-agent.yaml", mode = "644" },
+    { source = "../../distribution/qlog-agent-config.yaml", dest = "/etc/quicmop/quicmop-qlog-agent.yaml", mode = "644" },
     { source = "../../README.md", dest = "/usr/share/doc/quicmop-qlog-agent/README", mode = "644", doc = true },
     { source = "../../LICENSE", dest = "/usr/share/licenses/quicmop-qlog-agent/LICENSE", mode = "644" },
     { source = "../../distribution/systemd/quicmop-qlog-agent.service", dest = "/lib/systemd/system/quicmop-qlog-agent.service", mode = "644" },
