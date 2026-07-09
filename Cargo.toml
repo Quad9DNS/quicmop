@@ -37,7 +37,7 @@ netlink-packet-sock-diag = { path = "./vendor/netlink-packet-sock-diag" }
 notify-debouncer-mini = { version = "0.7.0" }
 prost = { version = "0.14.3" }
 prost-types = { version = "0.14.3" }
-qlog = { version = "0.17.0" }
+qlog = { version = "0.18.0" }
 rustix = { version = "1.1.4" }
 serde = { version = "1.0.219" }
 serde_json = { version = "1.0.140" }

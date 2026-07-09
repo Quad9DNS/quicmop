@@ -1,4 +1,5 @@
 use std::{
+    collections::HashMap,
     fs::File,
     io::BufReader,
     net::{IpAddr, SocketAddr},
@@ -73,6 +74,13 @@ impl QlogLoader {
             } else {
                 "QUIC"
             };
+            let default_tuple = reader
+                .qlog
+                .trace
+                .common_fields
+                .as_ref()
+                .and_then(|c| c.tuple.clone())
+                .unwrap_or_default();
             // TODO: peer_ip is included in description in our dnsdist impl
             let src: Option<IpAddr> = reader.qlog.description.as_ref().and_then(|desc| {
                 let desc_pairs = desc.split(" ");
@@ -85,45 +93,73 @@ impl QlogLoader {
                 }
                 None
             });
-            let mut dst: Option<IpAddr> = None;
+            let dst: Option<IpAddr> = hostname.parse::<IpAddr>().map(Into::into).ok().flatten();
+            let mut tuples: HashMap<String, (Option<IpAddr>, Option<IpAddr>)> = HashMap::default();
+            tuples.insert(default_tuple.clone(), (src, dst));
             for qlog_event in reader {
                 if let Event::Qlog(qlog) = qlog_event {
-                    if let EventData::Http3FrameParsed(frame_parsed) = &qlog.data
-                        && let Http3Frame::Headers { headers, raw: _ } = &frame_parsed.frame
-                    {
-                        for h in headers {
-                            if h.name == Some(":authority".to_string()) {
-                                let socket_addr: Option<SocketAddr> =
-                                    h.value.as_ref().and_then(|v| v.parse().ok());
-                                dst = socket_addr.map(|s| s.ip());
+                    let tuple = qlog
+                        .ex_data
+                        .get("tuple")
+                        .and_then(|t| t.as_str())
+                        .map(ToString::to_string)
+                        .unwrap_or(default_tuple.clone());
+                    match qlog.data {
+                        EventData::Http3FrameParsed(frame_parsed) => {
+                            if let Http3Frame::Headers { headers, raw: _ } = &frame_parsed.frame {
+                                for h in headers {
+                                    if h.name == Some(":authority".to_string()) {
+                                        let socket_addr: Option<SocketAddr> =
+                                            h.value.as_ref().and_then(|v| v.parse().ok());
+                                        tuples.entry(tuple.clone()).or_default().1 =
+                                            socket_addr.map(|s| s.ip());
+                                    }
+                                }
                             }
                         }
-                    }
-                    if let EventData::QuicMetricsUpdated(metrics) =
-                                                qlog.data
-                                                && let Some(min_rtt) = metrics.min_rtt
-                                                &&
-                                                let Some(src) = src
-                                                    // TODO: we need to figure out DST in qlog
-                                                    // too
-                                                    && let Some(dst) =
-                                                        dst.or_else(|| {
-                                                            hostname
-                                                                .parse::<IpAddr>()
-                                                                .map(Into::into)
-                                                                .ok()
-                                                                .flatten()
-                                                        })
-                    {
-                        request.metrics.push(SocketMetricsGroup {
-                            src: Some(src.into()),
-                            dst: Some(dst.into()),
-                            host: hostname.clone(),
-                            latency_type: latency_type.to_string(),
-                            metrics: Some(Metrics {
-                                min_rtt_us: (min_rtt * 1000.0) as u64,
-                            }),
-                        });
+                        EventData::QuicMetricsUpdated(metrics) => {
+                            let (src, dst) = tuples.get(&tuple).unwrap_or(&(None, None));
+                            if let Some(min_rtt) = metrics.min_rtt
+                                && let Some(src) = *src
+                                && let Some(dst) = *dst
+                            {
+                                request.metrics.push(SocketMetricsGroup {
+                                    src: Some(src.into()),
+                                    dst: Some(dst.into()),
+                                    host: hostname.clone(),
+                                    latency_type: latency_type.to_string(),
+                                    metrics: Some(Metrics {
+                                        min_rtt_us: (min_rtt * 1000.0) as u64,
+                                    }),
+                                });
+                            }
+                        }
+                        EventData::QuicTupleAssigned(tuple_assigned) => {
+                            tuples.insert(
+                                tuple_assigned.tuple_id,
+                                // TODO: Should we always use default if tuple data is missing -
+                                // this will help us collect more metrics, but it might be incorrect
+                                (
+                                    tuple_assigned
+                                        .tuple_local
+                                        .and_then(|t| {
+                                            t.ip_v4
+                                                .and_then(|ip| ip.parse().ok())
+                                                .or(t.ip_v6.and_then(|ip| ip.parse().ok()))
+                                        })
+                                        .or(src),
+                                    tuple_assigned
+                                        .tuple_remote
+                                        .and_then(|t| {
+                                            t.ip_v4
+                                                .and_then(|ip| ip.parse().ok())
+                                                .or(t.ip_v6.and_then(|ip| ip.parse().ok()))
+                                        })
+                                        .or(dst),
+                                ),
+                            );
+                        }
+                        _ => {}
                     }
                 }
             }
