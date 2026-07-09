@@ -165,6 +165,7 @@ impl Service<InitState> {
                 let requests_stream = QlogLoader::new(agent_hostname.clone(), qlog_dir.clone())
                     .unwrap()
                     .start_loading()
+                    .await
                     .unwrap();
                 tokio::select! {
                     _ = client_shutdown_rx.recv() => {

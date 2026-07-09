@@ -1835,6 +1835,7 @@ dependencies = [
  "tonic",
  "tracing",
  "tracing-subscriber",
+ "walkdir",
 ]
 
 [[package]]

@@ -67,3 +67,4 @@ tokio-stream.workspace = true
 tonic.workspace = true
 tracing-subscriber.workspace = true
 tracing.workspace = true
+walkdir.workspace = true
