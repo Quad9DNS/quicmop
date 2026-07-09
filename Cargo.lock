@@ -1299,7 +1299,7 @@ dependencies = [
 
 [[package]]
 name = "netobserv-flow-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prost",
  "prost-types",
@@ -1687,7 +1687,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-collector"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "clap",
@@ -1718,7 +1718,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-kernel-agent"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "clap",
@@ -1748,7 +1748,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-metrics"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "futures",
  "metrics",
@@ -1761,7 +1761,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-metrics-exporters"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "axum",
  "futures",
@@ -1774,7 +1774,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-netobserv-ebpf-agent-adapter"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "clap",
@@ -1801,7 +1801,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-proto"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "prost",
  "tonic",
@@ -1811,7 +1811,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-qlog-agent"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "clap",
@@ -1839,7 +1839,7 @@ dependencies = [
 
 [[package]]
 name = "quicmop-signals"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "async-stream",
  "tokio",
