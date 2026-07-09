@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.package]
 authors = ["John Todd <jtodd@quad9.net>", "Ensar Sarajčić <dev@ensarsarajcic.com>"]
-description = "TODO quicmop"
+description = "QUIC and TCP latency measurement toolkit. Takes in measurements from different sources, aggregates them and exposes them in Prometheus and other formats."
 edition = "2024"
 repository = "https://github.com/Quad9DNS/quicmop"
 license = "AGPL-3.0-or-later"
