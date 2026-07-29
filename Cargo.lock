@@ -1163,7 +1163,7 @@ dependencies = [
  "indexmap",
  "ipnet",
  "metrics",
- "metrics-util 0.20.1",
+ "metrics-util",
  "quanta",
  "rustls",
  "thiserror",
@@ -1173,35 +1173,19 @@ dependencies = [
 
 [[package]]
 name = "metrics-util"
-version = "0.19.1"
+version = "0.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b8496cc523d1f94c1385dd8f0f0c2c480b2b8aeccb5b7e4485ad6365523ae376"
+checksum = "cdfb1365fea27e6dd9dc1dbc19f570198bc86914533ad639dae939635f096be4"
 dependencies = [
  "aho-corasick",
  "crossbeam-epoch",
  "crossbeam-utils",
- "hashbrown 0.15.2",
+ "hashbrown 0.16.1",
  "indexmap",
  "metrics",
  "ordered-float",
  "quanta",
  "radix_trie",
- "rand",
- "rand_xoshiro",
- "sketches-ddsketch",
-]
-
-[[package]]
-name = "metrics-util"
-version = "0.20.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cdfb1365fea27e6dd9dc1dbc19f570198bc86914533ad639dae939635f096be4"
-dependencies = [
- "crossbeam-epoch",
- "crossbeam-utils",
- "hashbrown 0.16.1",
- "metrics",
- "quanta",
  "rand",
  "rand_xoshiro",
  "sketches-ddsketch",
@@ -1421,9 +1405,9 @@ checksum = "d05e27ee213611ffe7d6348b942e8f942b37114c00cc03cec254295a4a17852e"
 
 [[package]]
 name = "ordered-float"
-version = "4.6.0"
+version = "5.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7bb71e1b3fa6ca1c61f383464aaf2bb0e2f8e772a1f01d486832464de363b951"
+checksum = "b7d950ca161dc355eaf28f82b11345ed76c6e1f6eb1f4f4479e0323b9e2fbd0e"
 dependencies = [
  "num-traits",
 ]
@@ -1696,7 +1680,7 @@ dependencies = [
  "ipnet",
  "metrics",
  "metrics-exporter-prometheus",
- "metrics-util 0.19.1",
+ "metrics-util",
  "moka",
  "netobserv-flow-proto",
  "quicmop-metrics",
@@ -1725,7 +1709,7 @@ dependencies = [
  "futures",
  "metrics",
  "metrics-exporter-prometheus",
- "metrics-util 0.19.1",
+ "metrics-util",
  "netlink-packet-core",
  "netlink-packet-route",
  "netlink-packet-sock-diag",
@@ -1781,7 +1765,7 @@ dependencies = [
  "futures",
  "metrics",
  "metrics-exporter-prometheus",
- "metrics-util 0.19.1",
+ "metrics-util",
  "netobserv-flow-proto",
  "quicmop-metrics",
  "quicmop-metrics-exporters",
@@ -1818,7 +1802,7 @@ dependencies = [
  "futures",
  "metrics",
  "metrics-exporter-prometheus",
- "metrics-util 0.19.1",
+ "metrics-util",
  "notify-debouncer-mini",
  "qlog",
  "quicmop-metrics",
