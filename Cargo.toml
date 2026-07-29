@@ -32,7 +32,7 @@ metrics-util = { version = "0.19.1" }
 moka = { version = "0.12.15" }
 netlink-sys = "0.8"
 netlink-packet-core = "0.8.1"
-netlink-packet-route = { version = "0.30.0" }
+netlink-packet-route = { version = "0.31.0" }
 netlink-packet-sock-diag = { path = "./vendor/netlink-packet-sock-diag" }
 notify-debouncer-mini = { version = "0.7.0" }
 prost = { version = "0.14.3" }
