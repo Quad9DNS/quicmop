@@ -4,5 +4,5 @@ use snafu::Snafu;
 #[snafu(visibility(pub))]
 pub enum QuicmopKernelAgentError {
     #[snafu(display("Parsing config YAML file failed: {}", source))]
-    ConfigYamlParsing { source: serde_yaml::Error },
+    ConfigYamlParsing { source: serde_saphyr::Error },
 }
