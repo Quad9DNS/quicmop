@@ -32,6 +32,9 @@ jobs:
       - name: Setup cargo deny
         run: cargo install cargo-deny
 
+      - name: Install protoc
+        run: sudo apt-get update -y && sudo apt-get -y install protobuf-compiler
+
       - name: Run checks
         run: make check-all
 
@@ -57,6 +60,9 @@ jobs:
 
       - name: Install scdoc
         run: sudo apt-get update -y && sudo apt-get -y install scdoc
+
+      - name: Install protoc
+        run: sudo apt-get update -y && sudo apt-get -y install protobuf-compiler
 
       - name: Build docs
         run: make doc
