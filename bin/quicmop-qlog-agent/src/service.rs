@@ -114,7 +114,11 @@ impl Service<InitState> {
             config.metrics.exporters.clone(),
             metrics_handle,
             init_time,
-        );
+        )
+        .map_err(|err| {
+            error!(message = "Metrics configuration error.", error = %err);
+            exitcode::UNAVAILABLE
+        })?;
         Ok((
             runtime,
             Self {

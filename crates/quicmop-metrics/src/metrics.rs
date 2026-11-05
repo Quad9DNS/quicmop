@@ -71,13 +71,13 @@ impl MetricsProcessor {
         exporters: HashSet<MetricsExporter>,
         metrics_handle: PrometheusHandle,
         process_init_time: Instant,
-    ) -> Self {
-        Self {
+    ) -> crate::Result<Self> {
+        Ok(Self {
             exporters,
             metrics_handle,
-            sytem_metrics: SystemMetrics::new(),
+            sytem_metrics: SystemMetrics::new()?,
             process_init_time,
-        }
+        })
     }
 
     pub async fn run<T: MetricsExtraProvider + 'static>(
